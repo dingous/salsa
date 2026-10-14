@@ -26,19 +26,28 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            foreach(var target in new[]{new Vector3(.15f,.45f,-.1f),new Vector3(-.15f,.45f,-.1f),new Vector3(0,-.4f,-.25f)}) {
+                VrmAvatarController.SolveArm(target,new Vector3(.3f,.1f,0),.32f,.28f,out var upper,out var lower);
+                Check(Vector3.Distance(upper*.32f+lower*.28f,target)<.001f,"IK reaches seated/head target "+target);
+                Check(Vector3.Angle(upper,lower)<=150.01f,"IK elbow limit "+target);
+            }
             if(!ui.Vrm.Active){Application.Quit(1);yield break;}
             string root=Path.GetFullPath(Path.Combine(Application.dataPath,"..","..","Validation"));Directory.CreateDirectory(root);
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-live-e2e")>=0) {
+                bool gestures=Array.IndexOf(Environment.GetCommandLineArgs(),"--gestures")>=0;
+                var audit=new GestureAudit();
                 Call(ui,"ToggleTracking");Call(ui,"ToggleCamera");
                 float connectedAt=-1;bool cameraReady=false,clean=false,faceSeen=false,poseSeen=false,handsSeen=false;start=Time.realtimeSinceStartup;
-                while(Time.realtimeSinceStartup-start<30) {
+                while(Time.realtimeSinceStartup-start<(gestures?75:30)) {
                     if(ui.tracking.Connected && connectedAt<0){connectedAt=Time.realtimeSinceStartup;Debug.Log("CORPORATE_LIVE_TRACKER_READY");}
                     if(!cameraReady && ui.GetComponent<VirtualCameraOutput>().Sending){cameraReady=true;Debug.Log("CORPORATE_LIVE_CAMERA_READY");}
                     faceSeen|=ui.tracking.FaceDetected;poseSeen|=ui.tracking.PoseDetected;handsSeen|=ui.tracking.HandsDetected;
-                    if(!clean && Time.realtimeSinceStartup-start>15){clean=true;ui.avatar.previewAnimation=true;ui.avatar.previewExpressionPreset=4;Call(ui,"SetPresentation",true);}
+                    if(gestures)audit.Sample(ui);
+                    if(!gestures&&!clean && Time.realtimeSinceStartup-start>15){clean=true;ui.avatar.previewAnimation=true;ui.avatar.previewExpressionPreset=4;Call(ui,"SetPresentation",true);}
                     yield return null;
                 }
                 Check(connectedAt>=0,"Physical webcam produced valid tracking packets");
+                if(gestures){audit.Save(Path.Combine(root,"corporate-gesture-audit.json"));Check(audit.Passed,"Real webcam head reach, arms and finger curl on both sides");}
                 Debug.Log($"CORPORATE_LIVE_DETECTIONS face={faceSeen} pose={poseSeen} hands={handsSeen}");
                 var broadcaster=ui.GetComponent<VirtualCameraOutput>();
                 Check(broadcaster.Sending && broadcaster.Error==null,"Unity camera connected to OBS bridge on TCP 5060");
@@ -97,7 +106,16 @@ namespace WebcamAvatar
                         var arm=rig.GetBoneTransform(side==0?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm);
                         var end=rig.GetBoneTransform(side==0?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm);
                         float alignment=Vector3.Dot((end.position-arm.position).normalized,desired);
-                        Check(alignment>.85f,$"Arm direction {direction}, side {side}, mirror {mirror}, alignment {alignment:F3}");
+                        var handBone=rig.GetBoneTransform(side==0?HumanBodyBones.LeftHand:HumanBodyBones.RightHand);
+                        var otherArm=rig.GetBoneTransform(side==0?HumanBodyBones.RightUpperArm:HumanBodyBones.LeftUpperArm);
+                        float scale=Vector3.Distance(arm.position,otherArm.position)/.6f;
+                        var reach=new Vector3((body[wrist].x-body[shoulder].x)*(mirror?-1:1),-(body[wrist].y-body[shoulder].y),body[wrist].z-body[shoulder].z)*scale;
+                        float maxReach=Vector3.Distance(arm.position,end.position)+Vector3.Distance(end.position,handBone.position);
+                        float lengthA=Vector3.Distance(arm.position,end.position),lengthB=Vector3.Distance(end.position,handBone.position);
+                        float minReach=Mathf.Sqrt(lengthA*lengthA+lengthB*lengthB+2*lengthA*lengthB*Mathf.Cos(150*Mathf.Deg2Rad));
+                        if(reach.magnitude<minReach)reach=desired*minReach;
+                        reach=reach.normalized*Mathf.Clamp(reach.magnitude,minReach,maxReach-.0001f);
+                        Check(Vector3.Distance(handBone.position-arm.position,reach)<.08f,$"Arm wrist reach {direction}, side {side}, mirror {mirror}, error {Vector3.Distance(handBone.position-arm.position,reach):F3}");
                     }
                 }
                 foreach(bool mirror in new[]{false,true}) {
@@ -151,7 +169,7 @@ namespace WebcamAvatar
             }
             yield return new WaitForSecondsRealtime(2);
             Check(expression.GetWeight(jaw)<.05f,"Tracking loss restores neutral expression");
-            Check(ui.tracking.port==5059,"Isolated tracker port");
+            Check(ui.tracking.port==15059,"Isolated synthetic tracker port");
             var saved=JsonUtility.FromJson<AvatarProfile>(JsonUtility.ToJson(ui.avatar.Profile));saved.Sanitize();
             Check(saved.style==1 && saved.hairStyle==0,"Identity profile roundtrip");
             string photo=Path.GetFullPath(Path.Combine(root,"..","..","Validation","reference.png"));

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 import cv2
 import numpy as np
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 log = ROOT / 'Validation/corporate-live-player.log'
@@ -13,7 +14,8 @@ log.write_text('', encoding='utf-8')
 info = subprocess.STARTUPINFO()
 info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 info.wShowWindow = 0
-process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', '-logFile', str(log)], startupinfo=info)
+gestures = '--gestures' in sys.argv
+process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), '-logFile', str(log)], startupinfo=info)
 receiver = None
 try:
     deadline = time.monotonic() + 35
@@ -34,7 +36,7 @@ try:
     count = 0
     variation = []
     previous = None
-    while time.monotonic() - start < 18:
+    while time.monotonic() - start < (60 if gestures else 18):
         ok, frame = receiver.read()
         assert ok and frame.shape == (720, 1280, 3), 'Invalid virtual video frame'
         small = cv2.resize(frame, (160, 90)).astype(float)
@@ -53,14 +55,17 @@ try:
     receiver = None
     code = process.wait(timeout=20)
     text = log.read_text(encoding='utf-8', errors='replace')
-    assert code == 0 and 'CORPORATE_LIVE_RESULT=True' in text, 'Unity hardware checks failed'
-    result = {'result':'PASS', 'frames':count, 'seconds':round(elapsed,2), 'receiverFps':round(fps,2),
+    passed = code == 0 and 'CORPORATE_LIVE_RESULT=True' in text
+    result = {'result':'PASS' if passed else 'FAIL', 'frames':count, 'seconds':round(elapsed,2), 'receiverFps':round(fps,2),
               'resolution':[1280,720], 'physicalTracking':True, 'virtualDriver':'OBS/DirectShow',
-              'cleanScreenIncluded':True, 'cleanScreenMotionSource':'animated avatar preview',
+              'cleanScreenIncluded':not gestures, 'cleanScreenMotionSource':'real webcam' if gestures else 'animated avatar preview',
               'savedRawWebcamImages':False,
               'faceSeen':'face=True' in text, 'poseSeen':'pose=True' in text, 'handsSeen':'hands=True' in text}
+    if gestures:
+        result['gestureAudit'] = json.loads((ROOT / 'CorporateUnity/Validation/corporate-gesture-audit.json').read_text(encoding='utf-8'))
     (ROOT / 'Validation/corporate-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result))
+    assert passed, 'Unity hardware/gesture checks failed; see corporate-camera-result.json'
 finally:
     if receiver is not None:
         receiver.release()

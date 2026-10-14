@@ -22,6 +22,8 @@ namespace WebcamAvatar
         readonly Dictionary<HumanBodyBones,Quaternion> localRest=new Dictionary<HumanBodyBones,Quaternion>(),worldRest=new Dictionary<HumanBodyBones,Quaternion>();
         readonly Dictionary<HumanBodyBones,Vector3> directions=new Dictionary<HumanBodyBones,Vector3>();
         readonly Dictionary<HumanBodyBones,Quaternion> palmRest=new Dictionary<HumanBodyBones,Quaternion>();
+        readonly Dictionary<HumanBodyBones,Vector3> trackedDirections=new Dictionary<HumanBodyBones,Vector3>();
+        readonly Dictionary<HumanBodyBones,float> lastSeen=new Dictionary<HumanBodyBones,float>();
         readonly Dictionary<Material,Color> originalColors=new Dictionary<Material,Color>();
         public CorporateAppearance Appearance {get;private set;}
         public void ApplyAppearance() {
@@ -67,6 +69,7 @@ namespace WebcamAvatar
                 if(Instance!=null)Destroy(Instance.gameObject);
                 Instance=candidate;candidate=null;SourcePath=Path.GetFullPath(path);origin=Instance.transform.position;facing=Instance.transform.rotation;
                 bones.Clear();localRest.Clear();worldRest.Clear();directions.Clear();palmRest.Clear();
+                trackedDirections.Clear();lastSeen.Clear();
                 foreach(HumanBodyBones key in Enum.GetValues(typeof(HumanBodyBones))) {
                     if(key==HumanBodyBones.LastBone)continue;
                     var bone=rig.GetBoneTransform(key);if(bone==null)continue;
@@ -99,7 +102,8 @@ namespace WebcamAvatar
         public void UseProcedural() {if(Instance!=null)Instance.gameObject.SetActive(false);settings.UseExternalModel(false);}
         public void UseVrm() {if(Instance==null)return;Instance.gameObject.SetActive(true);settings.UseExternalModel(true);}
         Vector3 P(Point p)=>new Vector3(tracking.mirror?-p.x:p.x,-p.y,p.z);
-        static bool Valid(Point[] p,params int[] indices) {if(p==null)return false;foreach(int i in indices)if(i>=p.Length || p[i]==null || p[i].confidence<.55f)return false;return true;}
+        static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+        static bool Valid(Point[] p,params int[] indices) {if(p==null)return false;foreach(int i in indices)if(i>=p.Length || p[i]==null || !Finite(p[i].confidence)||p[i].confidence<.55f||!Finite(p[i].x)||!Finite(p[i].y)||!Finite(p[i].z))return false;return true;}
         void Rotate(HumanBodyBones key,Quaternion target,float t,bool world=false) {
             if(!bones.TryGetValue(key,out var bone))return;
             float step=snapPose?3600:(key.ToString().Contains("Arm")?360:480)*Time.unscaledDeltaTime;
@@ -112,6 +116,66 @@ namespace WebcamAvatar
         }
         void Segment(HumanBodyBones key,Point[] p,int a,int b,float t,Vector3 fallback) {
             Aim(key,Valid(p,a,b)?P(p[b])-P(p[a]):fallback,t);
+        }
+        Vector3 FilterDirection(HumanBodyBones key,Vector3 target,bool visible) {
+            if(target.sqrMagnitude<.000001f)visible=false;
+            if(visible)lastSeen[key]=clock;
+            if(!trackedDirections.TryGetValue(key,out var previous)||snapPose)previous=target.normalized;
+            if(!visible&&lastSeen.TryGetValue(key,out var seen)&&clock-seen<.2f)return previous;
+            var value=Vector3.Slerp(previous,target.normalized,snapPose?1:1-Mathf.Exp(-(visible?18:4)*Time.unscaledDeltaTime)).normalized;
+            trackedDirections[key]=value;return value;
+        }
+        void SeatedArm(bool left,Point[] p,int s,int e,int w,float t) {
+            var upper=left?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm;
+            var lower=left?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm;
+            var torso=bones.ContainsKey(HumanBodyBones.Chest)?HumanBodyBones.Chest:HumanBodyBones.Spine;
+            var delta=bones.TryGetValue(torso,out var chest)?chest.rotation*Quaternion.Inverse(worldRest[torso]):Quaternion.identity;
+            var relaxedUpper=delta*new Vector3(left?.12f:-.12f,-1,-.08f).normalized;
+            if(Valid(p,11,12,s,w)&&bones.ContainsKey(upper)&&bones.ContainsKey(lower)) {
+                var wrist=left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand;
+                var other=left?HumanBodyBones.RightUpperArm:HumanBodyBones.LeftUpperArm;
+                if(bones.ContainsKey(wrist)&&bones.ContainsKey(other)) {
+                    float observedWidth=Vector3.Distance(P(p[11]),P(p[12]));
+                    float modelWidth=Vector3.Distance(bones[upper].position,bones[other].position);
+                    float lengthA=Vector3.Distance(bones[upper].position,bones[lower].position),lengthB=Vector3.Distance(bones[lower].position,bones[wrist].position);
+                    if(observedWidth>.12f&&lengthA>.01f&&lengthB>.01f) {
+                        float scale=Mathf.Clamp(modelWidth/observedWidth,.4f,3f);
+                        Vector3 pole=Valid(p,s,e)?P(p[e])-P(p[s]):trackedDirections.TryGetValue(upper,out var lastUpper)?lastUpper:new Vector3(left?.4f:-.4f,.2f,-.15f);
+                        Vector3 target=(P(p[w])-P(p[s]))*scale;
+                        // Near-face gestures need a shared head anchor, because
+                        // human and avatar neck/shoulder proportions differ.
+                        if(Valid(p,0)&&bones.ContainsKey(HumanBodyBones.Head)&&Vector3.Distance(P(p[w]),P(p[0]))<.23f)
+                            target=bones[HumanBodyBones.Head].position-bones[upper].position+(P(p[w])-P(p[0]))*scale;
+                        float minimum=Mathf.Sqrt(lengthA*lengthA+lengthB*lengthB+2*lengthA*lengthB*Mathf.Cos(150*Mathf.Deg2Rad));
+                        // Wrist direction becomes unstable at the shoulder.
+                        // The visible elbow provides the stable bend direction.
+                        if(target.magnitude<minimum)target=pole.normalized*minimum;
+                        SolveArm(target,pole,lengthA,lengthB,out var ikUpper,out var ikLower);
+                        var filteredUpper=FilterDirection(upper,ikUpper,true);
+                        Aim(upper,filteredUpper,t);
+                        var filteredLower=FilterDirection(lower,ikLower,true);
+                        filteredLower=Vector3.RotateTowards(filteredUpper,filteredLower,150*Mathf.Deg2Rad,0).normalized;
+                        trackedDirections[lower]=filteredLower;Aim(lower,filteredLower,t);return;
+                    }
+                }
+            }
+            var up=FilterDirection(upper,Valid(p,s,e)?P(p[e])-P(p[s]):relaxedUpper,Valid(p,s,e));
+            Aim(upper,up,t);
+            var relaxedLower=Quaternion.FromToRotation(relaxedUpper,up)*(delta*new Vector3(left?.06f:-.06f,-.25f,-1).normalized);
+            var down=FilterDirection(lower,Valid(p,e,w)?P(p[w])-P(p[e]):relaxedLower,Valid(p,e,w));
+            down=Vector3.RotateTowards(up,down,150*Mathf.Deg2Rad,0).normalized;
+            trackedDirections[lower]=down;Aim(lower,down,t);
+        }
+        public static void SolveArm(Vector3 target,Vector3 pole,float upperLength,float lowerLength,out Vector3 upper,out Vector3 lower) {
+            float min=Mathf.Sqrt(upperLength*upperLength+lowerLength*lowerLength+2*upperLength*lowerLength*Mathf.Cos(150*Mathf.Deg2Rad));
+            float distance=Mathf.Clamp(target.magnitude,min,upperLength+lowerLength-.0001f);
+            Vector3 axis=target.sqrMagnitude>.000001f?target.normalized:Vector3.down;
+            var bend=Vector3.ProjectOnPlane(pole,axis);
+            if(bend.sqrMagnitude<.000001f)bend=Vector3.ProjectOnPlane(Vector3.back,axis);
+            if(bend.sqrMagnitude<.000001f)bend=Vector3.ProjectOnPlane(Vector3.right,axis);
+            float along=(upperLength*upperLength-lowerLength*lowerLength+distance*distance)/(2*distance);
+            var elbow=axis*along+bend.normalized*Mathf.Sqrt(Mathf.Max(0,upperLength*upperLength-along*along));
+            upper=elbow.normalized;lower=(axis*distance-elbow).normalized;
         }
         void LimitedSegment(HumanBodyBones key,Point[] p,int a,int b,int c,float maximum,float t,Vector3 fallback) {
             if(!Valid(p,a,b,c)){Aim(key,fallback,t);return;}
@@ -181,8 +245,7 @@ namespace WebcamAvatar
             }
             for(int side=0;side<2;side++) {
                 bool left=side==0;int source=tracking.mirror?1-side:side;int s=source==0?11:12,e=source==0?13:14,w=source==0?15:16,h=source==0?23:24,k=source==0?25:26,a=source==0?27:28,toe=source==0?31:32;
-                Segment(left?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm,p,s,e,t,new Vector3(left?.12f:-.12f,-1,0));
-                LimitedSegment(left?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm,p,s,e,w,150,t,new Vector3(0,-1,-.1f));
+                SeatedArm(left,p,s,e,w,t);
                 Segment(left?HumanBodyBones.LeftUpperLeg:HumanBodyBones.RightUpperLeg,p,h,k,t,Vector3.down);
                 LimitedSegment(left?HumanBodyBones.LeftLowerLeg:HumanBodyBones.RightLowerLeg,p,h,k,a,160,t,Vector3.down);
                 Segment(left?HumanBodyBones.LeftFoot:HumanBodyBones.RightFoot,p,a,toe,t,new Vector3(0,-.1f,-1));
@@ -209,7 +272,11 @@ namespace WebcamAvatar
             HumanBodyBones[] starts=left?new[]{HumanBodyBones.LeftThumbProximal,HumanBodyBones.LeftIndexProximal,HumanBodyBones.LeftMiddleProximal,HumanBodyBones.LeftRingProximal,HumanBodyBones.LeftLittleProximal}:new[]{HumanBodyBones.RightThumbProximal,HumanBodyBones.RightIndexProximal,HumanBodyBones.RightMiddleProximal,HumanBodyBones.RightRingProximal,HumanBodyBones.RightLittleProximal};
             for(int finger=0;finger<5;finger++)for(int joint=0;joint<3;joint++) {
                 var key=(HumanBodyBones)((int)starts[finger]+joint);int index=1+finger*4+joint;
-                if(Valid(hand,index,index+1))Aim(key,P(hand[index+1])-P(hand[index]),t);
+                if(Valid(hand,0,5,9,17,index,index+1)&&bones.ContainsKey(wrist)&&directions.TryGetValue(key,out var axis)) {
+                    var target=FilterDirection(key,P(hand[index+1])-P(hand[index]),true);
+                    var palmDelta=bones[wrist].rotation*Quaternion.Inverse(worldRest[wrist]);
+                    if(target.sqrMagnitude>.000001f&&axis.sqrMagnitude>.000001f)Rotate(key,Quaternion.FromToRotation(palmDelta*axis,target)*palmDelta*worldRest[key],t,true);
+                }
                 else if(localRest.TryGetValue(key,out var fingerRest))Rotate(key,fingerRest,t);
             }
         }

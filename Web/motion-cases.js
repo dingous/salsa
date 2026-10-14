@@ -47,7 +47,7 @@ export function runMotionChecks(rig,THREE) {
     const yaw=new THREE.Euler().setFromQuaternion(rig.bones.get('head').getWorldQuaternion(new THREE.Quaternion()),'YXZ').y;
     check(label+': cabeça usa a mesma conversão de eixos',mirror?yaw>.2:yaw<-.2);
     const gestures=poseFrame();gestures.shapes=[{name:'eyeBlinkLeft',value:1},{name:'jawOpen',value:1}];
-    gestures.leftHand=Array.from({length:21},(_,i)=>({x:i===0?0:((i-1)%4+1)*.025,y:0,z:0,confidence:1}));
+    gestures.leftHand=Array.from({length:21},(_,i)=>({x:i===0?0:((i-1)%4+1)*.025,y:i===0?0:(Math.floor((i-1)/4)-2)*.018,z:0,confidence:1}));
     settle(gestures);
     if(rig.vrm.expressionManager){
       const custom=!!rig.vrm.expressionManager.getExpression('jawOpen'),left=custom?'eyeBlinkLeft':'blinkLeft',right=custom?'eyeBlinkRight':'blinkRight';

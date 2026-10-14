@@ -92,3 +92,26 @@ acessórios, regressões de filtros/cookies/mãos e 15 verificações do servido
 O teste Node usa decodificação de texturas simulada e não valida renderização.
 A inspeção do navegador local foi bloqueada pela política da ferramenta.
 Essa versão web ainda não foi publicada no domínio.
+
+## Windows arm and finger correction — 2026-10-14
+
+Corporate Windows player rebuilt successfully. Arms now hold brief occlusions and ease into a bent seated pose when wrists leave view, with torso-relative fallback and a 150-degree elbow limit after direction smoothing. Finger rest twist now follows wrist roll; finger directions are smoothed, and non-finite landmarks are rejected. Native synthetic smoke run: 356 checks passed, exit 0, CORPORATE_RESULT=True. Log: Validation/corporate-hands-player.log. Real-user webcam gesture accuracy remains to be validated; this run did not open the physical camera.
+
+## Seated/head reach IK — 2026-10-14
+
+Windows arms now solve a two-bone wrist target scaled by shoulder width and actual avatar limb lengths. Near-face gestures use the avatar head anchor. Overfolded observations use the visible elbow to stabilize the closest anatomically reachable target. Existing UDP tests now verify wrist reach; added analytic seated/head targets and elbow limits. Synthetic smoke uses isolated port 15059 so an open user session on 5059 cannot consume fixtures. Final native run: 362 checks passed, exit 0, CORPORATE_RESULT=True (Validation/corporate-ik-release.log). Webcam gesture accuracy and physical hand/head contact remain pending real-user validation. The already running player must be restarted to load the new assemblies.
+
+## Real webcam gesture E2E — 2026-10-14
+
+Command: `Tracker/.venv/Scripts/python.exe Tools/e2e_corporate_camera.py --gestures`.
+The user performed seated head-reach, arm raise/lower and finger open/close gestures. This mode disables synthetic preview and records aggregate landmark/rig measurements plus avatar output only; no raw webcam images are saved.
+
+The first real run failed head reach despite detecting face, body and both hands. Arm IK incorrectly required a visible elbow, causing a relaxed fallback when the elbow was occluded near the head. IK now accepts a visible wrist with shoulders, using the last reliable upper-arm direction as its bend pole when the elbow is hidden. A second capture also exposed one-wrist hand assignment: it previously required both pose wrists. A nearby single visible pose wrist now takes precedence over the selfie category; a distant wrist cannot steal the other hand. Five Python assignment regression tests passed.
+
+Final real run: PASS. OBS DirectShow received 1801 frames in 60 seconds, 1280 x 720, 30.02 FPS. Face, body and hands were detected. The minimum tracked wrist-to-nose distances were 0.187 / 0.097 meters; minimum avatar wrist-to-head-center distances during near-face observations were 0.258 / 0.143 meters. Observed wrist-height excursions were 0.263 / 0.335 meters. Tracked finger curl excursions were 65.3 / 52.3 degrees; avatar curl excursions were 66.8 / 66.1 degrees.
+
+Acceptance criteria: both sides observed, tracked near-face wrist under 0.23 m with avatar head proximity under 0.30 m, arm-height excursion over 0.25 m, tracked finger curl excursion over 20 degrees and avatar curl excursion over 15 degrees. Finger audit uses the mean index/middle/ring/little proximal bend; thumb and individual joints are covered by synthetic checks, not isolated real-camera gestures. These aggregate thresholds validate gesture transmission and reach; they do not establish exact hand/head contact, perfect finger fidelity, absence of mesh collisions, latency, or accuracy in all lighting/occlusion conditions. Avatar distances refer to a rig head center, not a physical surface contact point. Saved sample counters are rendering-loop observations and include repeated tracking frames.
+
+Artifacts: `Validation/corporate-camera-result.json`, `CorporateUnity/Validation/corporate-gesture-audit.json`, `Validation/corporate-gesture-before.json`, `Validation/corporate-live-player.log` (local ignored diagnostic files).
+
+Final rebuilt player regression after the real-camera fixes: 362 checks passed, exit 0, CORPORATE_RESULT=True (Validation/corporate-final-regression.log).

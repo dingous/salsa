@@ -82,6 +82,8 @@ namespace WebcamAvatar
 
         void Start()
         {
+            // Keep synthetic smoke packets isolated from an open user session.
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")>=0)port=15059;
             try { socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, port)); socket.Client.Blocking = false; }
             catch (Exception e) { error = e.Message; }
             if (humanoid != null && humanoid.isHuman) CacheRig();

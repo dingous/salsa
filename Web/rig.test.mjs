@@ -38,4 +38,14 @@ for(const mirror of [false,true]){
   }
 }
 Object.values(bones).forEach((bone,i)=>assert.ok(bone.position.equals(positions[i]),'Shoulder and limb attachments must not translate'));
+const palmScene=new THREE.Scene(),palm=new THREE.Bone(),finger=new THREE.Bone(),tip=new THREE.Bone();
+palmScene.add(palm);palm.add(finger);finger.add(tip);finger.position.set(.03,0,0);tip.position.set(.03,0,0);
+const palmBones={leftHand:palm,leftIndexProximal:finger,leftIndexIntermediate:tip};
+const palmRig=new AvatarRig({scene:palmScene,humanoid:{humanBones:palmBones,getNormalizedBoneNode:k=>palmBones[k]},update:()=>{}});
+for(const roll of [-1.2,.6,1.4]){
+  palm.quaternion.setFromAxisAngle(new THREE.Vector3(1,0,0),roll);palmScene.updateMatrixWorld(true);
+  for(let i=0;i<120;i++)palmRig.aimFinger('leftIndexProximal',new THREE.Vector3(1,0,0),'leftHand',1);
+  assert.ok(finger.getWorldQuaternion(new THREE.Quaternion()).angleTo(palm.getWorldQuaternion(new THREE.Quaternion()))<1e-5,'Straight finger must carry palm roll without twisting independently');
+}
+assert.equal(rig.valid([{x:NaN,y:0,z:0,confidence:1}],0),false,'Invalid landmarks cannot rotate the arm');
 console.log('Arm attachment, anatomical axis, motion speed, seated wrist loss, both mirrors and elbow reacquisition checks passed');

@@ -7,6 +7,7 @@ export class AvatarRig {
     this.filtered=new Map();this.lastSeen=new Map();this.clock=0;this.dt=1/30;
     this.mirror=true;
     this.poseFilter=new PoseFilter();this.poseFrame=null;this.poseElapsed=0;
+    this.handFilters={left:new PoseFilter(),right:new PoseFilter()};this.handFrames={};this.handElapsed={left:0,right:0};
     vrm.scene.updateMatrixWorld(true);
     for(const key of Object.keys(vrm.humanoid.humanBones)) {
       const bone=vrm.humanoid.getNormalizedBoneNode(key);if(!bone)continue;
@@ -25,8 +26,8 @@ export class AvatarRig {
     }
   }
   point(p){return new THREE.Vector3(this.mirror?-p.x:p.x,-p.y,-p.z);}
-  setMirror(value){this.mirror=!!value;this.filtered.clear();this.lastSeen.clear();this.neutral.identity();this.center=null;this.poseFilter.reset();this.poseFrame=null;}
-  valid(p,...indices){return p&&indices.every(i=>p[i]&&p[i].confidence>=.55);}
+  setMirror(value){this.mirror=!!value;this.filtered.clear();this.lastSeen.clear();this.neutral.identity();this.center=null;this.poseFilter.reset();this.poseFrame=null;for(const side of ['left','right']){this.handFilters[side].reset();this.handFrames[side]=null;this.handElapsed[side]=0;}}
+  valid(p,...indices){return p&&indices.every(i=>p[i]&&p[i].confidence>=.55&&[p[i].x,p[i].y,p[i].z].every(Number.isFinite));}
   basis(up,across,side) {
     if(up.lengthSq()<1e-8 || across.lengthSq()<1e-8)return new THREE.Quaternion();
     up.normalize();const normal=across.clone().cross(up).normalize();if(side==='right')normal.negate();
@@ -42,6 +43,16 @@ export class AvatarRig {
   aim(key,direction,t) {
     const rest=this.directions.get(key);if(!rest||rest.lengthSq()<1e-8||direction.lengthSq()<1e-8)return;
     const q=new THREE.Quaternion().setFromUnitVectors(rest.clone().normalize(),direction.clone().normalize()).multiply(this.world.get(key));this.rotate(key,q,t,true);
+  }
+  aimFinger(key,direction,wrist,t){
+    const rest=this.directions.get(key),hand=this.bones.get(wrist);
+    if(!rest||!hand||direction.lengthSq()<1e-8||rest.lengthSq()<1e-8)return;
+    // Carry the finger's rest twist with the palm. A world-space rest rotation
+    // discards wrist roll and makes fingers twist when the palm turns.
+    const palmDelta=hand.getWorldQuaternion(new THREE.Quaternion()).multiply(this.world.get(wrist).clone().invert());
+    const axis=rest.clone().applyQuaternion(palmDelta).normalize();
+    const target=new THREE.Quaternion().setFromUnitVectors(axis,direction.clone().normalize()).multiply(palmDelta).multiply(this.world.get(key));
+    this.rotate(key,target,t,true);
   }
   segment(key,points,a,b,t,fallback,upperKey=null){
     const tracked=this.valid(points,a,b),previous=this.filtered.get(key);
@@ -129,14 +140,18 @@ export class AvatarRig {
       if(upperDirection)relaxedLower.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(relaxedUpper,upperDirection));
       this.segment(prefix+'LowerArm',p,e,w,t,relaxedLower,prefix+'UpperArm');
       this.segment(prefix+'UpperLeg',p,h,k,t,new THREE.Vector3(0,-1,0));this.segment(prefix+'LowerLeg',p,k,a,t,new THREE.Vector3(0,-1,0));this.segment(prefix+'Foot',p,a,toe,t,new THREE.Vector3(0,-.1,1));
-      const hand=demo?null:frame?.[(source===0?'left':'right')+'Hand'],wrist=prefix+'Hand';
-      if(this.valid(hand,0,5,9,17)&&this.palms.has(wrist)) {
+      const rawHand=demo?null:frame?.[(source===0?'left':'right')+'Hand'],wrist=prefix+'Hand';
+      this.handElapsed[prefix]+=this.dt;
+      if(rawHand!==this.handFrames[prefix]){this.handFilters[prefix].update(rawHand,this.handElapsed[prefix]);this.handFrames[prefix]=rawHand;this.handElapsed[prefix]=0;}
+      const hand=rawHand?this.handFilters[prefix].points:null;
+      const palmValid=this.valid(hand,0,5,9,17)&&this.point(hand[9]).sub(this.point(hand[0])).cross(this.point(hand[17]).sub(this.point(hand[5]))).lengthSq()>1e-10;
+      if(palmValid&&this.palms.has(wrist)) {
         const basis=this.basis(this.point(hand[9]).sub(this.point(hand[0])),this.point(hand[17]).sub(this.point(hand[5])),prefix);
         this.rotate(wrist,basis.multiply(this.palms.get(wrist).clone().invert()).multiply(this.world.get(wrist)),t,true);
       }else if(this.rest.has(wrist))this.rotate(wrist,this.rest.get(wrist),t);
       for(const [fingerIndex,finger] of ['Thumb','Index','Middle','Ring','Little'].entries())for(const [j,joint] of (finger==='Thumb'&&this.bones.has(prefix+'ThumbMetacarpal')?['Metacarpal','Proximal','Distal']:['Proximal','Intermediate','Distal']).entries()) {
         const key=prefix+finger+joint,i=1+fingerIndex*4+j;
-        if(this.valid(hand,i,i+1))this.aim(key,this.point(hand[i+1]).sub(this.point(hand[i])),t);else if(this.rest.has(key))this.rotate(key,this.rest.get(key),t);
+        if(palmValid&&this.valid(hand,i,i+1))this.aimFinger(key,this.point(hand[i+1]).sub(this.point(hand[i])),wrist,t);else if(this.rest.has(key))this.rotate(key,this.rest.get(key),t);
       }
     }
     if(frame?.face&&frame.rotation?.length===9) {
