@@ -4,3 +4,7 @@ numpy==1.26.4
 jax==0.7.1
 jaxlib==0.7.1
 pyvirtualcam==0.14.0
+
+faster-whisper==1.2.1
+sounddevice==0.5.6
+av==15.1.0

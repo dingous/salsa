@@ -21,6 +21,7 @@ sys.path.insert(0,str(PROJECT / 'Tracker'))
 import dingous_lab
 import dingous_partner
 from local_ai import ensure_local_ai
+from voice_service import VoiceService
 VERSION = 2
 REVISION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 TOKEN = secrets.token_urlsafe(32)
@@ -298,6 +299,7 @@ class Bridge:
             return self.packet if live and self.packet else dict(face=False, pose=False, shapes=[], points=[])
 
     def close(self):
+        if hasattr(self,"voice"):self.voice.stop()
         self.closing.set()
         self.stop_tracking()
         self.stop_virtual()
@@ -306,6 +308,7 @@ class Bridge:
 
 
 def handler_for(bridge, port):
+    if not hasattr(bridge,"voice"):bridge.voice=VoiceService()
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -368,8 +371,6 @@ def handler_for(bridge, port):
                 self.reply(200, file.read_bytes(), mime)
 
         def do_POST(self):
-            if not self.authorized(True):
-                return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 <= length <= 4*1024*1024:
@@ -378,6 +379,8 @@ def handler_for(bridge, port):
                 data = self.rfile.read(length)
                 if len(data) != length:
                     raise ValueError('Requisição incompleta.')
+                if not self.authorized(True):
+                    return
                 path = urlsplit(self.path).path
                 client = self.headers['X-Avatar-Client']
                 if path == '/api/frame':
@@ -389,7 +392,11 @@ def handler_for(bridge, port):
                     body = json.loads(data)
                     if not isinstance(body, dict):
                         raise ValueError('A operação precisa de um objeto JSON.')
-                    if path == '/api/partner/ask':
+                    if path in ('/api/voice/start','/api/voice/stop','/api/voice/state'):
+                        if path.endswith('/start'):bridge.voice.start(client)
+                        elif path.endswith('/stop'):bridge.voice.stop(client)
+                        self.reply(200,bridge.voice.status(client));return
+                    elif path == '/api/partner/ask':
                         ensure_local_ai()
                         self.reply(200,dingous_partner.answer(body.get('question')));return
                     elif path == '/api/partner/remember':

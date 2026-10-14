@@ -28,6 +28,7 @@ namespace WebcamAvatar
         InputField nameField;
         RawImage referenceImage, avatarImage;
         GameObject photoPlaceholder;
+        LocalJob voiceListener;Toggle voiceToggle;bool resumeVoice;
         LocalJob partnerJob;InputField partnerQuestion,partnerAnswer;string partnerLast;bool partnerSucceeded,partnerMode;
         [Serializable] class PartnerReply {public string question,answer;}
         LocalJob laboratory;
@@ -221,23 +222,31 @@ namespace WebcamAvatar
             Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
             Button("Laboratório Dingous",parent,24,466,156,30,ShowLaboratory);
             Button("Restaurar cores",parent,190,466,156,30,()=>{Vrm.ResetAppearance();SetStatus("Cores originais restauradas.");});
-            Dropdown(new[]{"Modo: Webcam","Modo: Parceiro Dingous"},parent,24,504,322,34,i=>{if(i==1)ShowPartner();else{partnerMode=false;StopPartner();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);SetStatus("Modo Webcam. Inicie o rastreamento em Transmissão.");}});
+            Dropdown(new[]{"Modo: Webcam","Modo: Parceiro Dingous"},parent,24,504,322,34,i=>{if(i==1)ShowPartner();else{partnerMode=false;SetVoiceListening(false);StopPartner();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);SetStatus("Modo Webcam. Inicie o rastreamento em Transmissão.");}});
         }
         void ShowPartner(){
             StopLaboratory();if(trackerJob!=null)ToggleTracking();tracking.ClearSource();partnerMode=true;
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Parceiro Dingous",responsive.Content,116,256,370,558,panel).gameObject;
             Label("PARCEIRO DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
-            Label("IA local · resposta em áudio · memória explícita. A webcam não é usada neste modo.",advancedPanel.transform,24,68,322,55,13,muted);
+            Label("IA local · áudio · memória explícita",advancedPanel.transform,24,68,322,24,13,muted);
+            voiceToggle=Toggle("Escutar Dingous · microfone local",advancedPanel.transform,24,98,322,false,SetVoiceListening);
             partnerQuestion=Input("Sua dúvida ou preferência",advancedPanel.transform,24,134,322,66);partnerQuestion.lineType=InputField.LineType.MultiLineNewline;partnerQuestion.characterLimit=2000;
             partnerAnswer=Input("Resposta do Dingous",advancedPanel.transform,24,212,322,128);partnerAnswer.lineType=InputField.LineType.MultiLineNewline;partnerAnswer.readOnly=true;partnerAnswer.characterLimit=0;partnerAnswer.textComponent.alignment=TextAnchor.UpperLeft;partnerAnswer.text="Pergunte algo para começar.";
             Button("Perguntar e ouvir",advancedPanel.transform,24,352,322,40,()=>RunPartner("--question"),true);
             Button("Guardar preferência",advancedPanel.transform,24,402,322,32,()=>RunPartner("--remember"));
             Button("Aprovar para fine-tuning",advancedPanel.transform,24,442,322,32,()=>RunPartner("--approve"));
-            Button("Parar áudio",advancedPanel.transform,24,484,154,32,StopPartner);
-            Button("Fechar",advancedPanel.transform,190,484,156,32,()=>{StopPartner();Destroy(advancedPanel);advancedPanel=null;});responsive.LayoutAdvanced();
+            Button("Parar áudio",advancedPanel.transform,24,484,154,32,()=>{StopPartner();SetVoiceListening(false);voiceToggle.SetIsOnWithoutNotify(false);});
+            Button("Fechar",advancedPanel.transform,190,484,156,32,()=>{StopPartner();SetVoiceListening(false);Destroy(advancedPanel);advancedPanel=null;});responsive.LayoutAdvanced();
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);}
+        }
+        void SetVoiceListening(bool enabled){
+            if(voiceListener!=null){voiceListener.Dispose();voiceListener=null;}
+            if(!enabled){SetStatus("Microfone do Dingous desligado.");return;}
+            StopPartner();try{partnerLast=Path.Combine(Storage,"Partner","voice-answer.json");voiceListener=new LocalJob("dingous_listener.py","--output",partnerLast);SetStatus("Abrindo o microfone local. Diga Dingous e sua pergunta.");}catch(Exception e){SetStatus(e.Message,true);}
         }
         void RunPartner(string operation){
+            resumeVoice=voiceListener!=null;SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);
             if(partnerJob!=null){SetStatus("Aguarde a resposta ou pare o áudio.");return;}
             try {
                 if(operation=="--approve"&&string.IsNullOrEmpty(partnerLast)){SetStatus("Receba uma resposta antes de aprovar.");return;}
@@ -246,7 +255,7 @@ namespace WebcamAvatar
                 partnerSucceeded=false;partnerJob=new LocalJob("dingous_partner.py",args.ToArray());
             }catch(Exception e){SetStatus(e.Message,true);}
         }
-        void StopPartner(){if(partnerJob!=null){partnerJob.Dispose();partnerJob=null;SetStatus("Parceiro interrompido.");}}
+        void StopPartner(){resumeVoice=false;if(partnerJob!=null){partnerJob.Dispose();partnerJob=null;SetStatus("Parceiro interrompido.");}}
         void ShowLaboratory(){
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Laboratório Dingous",responsive.Content,116,256,370,558,panel).gameObject;
@@ -568,7 +577,7 @@ namespace WebcamAvatar
 
         void ToggleTracking()
         {
-            partnerMode=false;StopPartner();StopLaboratory();
+            partnerMode=false;SetVoiceListening(false);StopPartner();StopLaboratory();
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
             try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
             catch(Exception e){SetStatus(e.Message,true);}
@@ -664,12 +673,20 @@ namespace WebcamAvatar
         {
             if(canvas==null)return;
             if(rebuildPending && Time.unscaledTime-lastDetailChange>.18f){avatar.Rebuild(avatar.Profile);rebuildPending=false;}
+            if(voiceListener!=null){
+                while(voiceListener.Output.TryDequeue(out string voiceLine)){
+                    if(voiceLine.StartsWith("ANSWER|")&&partnerAnswer!=null){var reply=JsonUtility.FromJson<PartnerReply>(File.ReadAllText(voiceLine.Substring(7)));partnerAnswer.text=reply.answer;}
+                    else if(voiceLine.StartsWith("QUESTION|")&&partnerQuestion!=null)partnerQuestion.text=voiceLine.Substring(9);
+                    else if(voiceLine.Contains("|"))SetStatus(voiceLine.Substring(voiceLine.IndexOf('|')+1),voiceLine.StartsWith("VOICE_ERROR|"));
+                }
+                if(voiceListener.Finished){SetStatus(voiceListener.FriendlyError("A escuta foi encerrada."),voiceListener.ExitCode!=0);voiceListener.Dispose();voiceListener=null;if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);}
+            }
             if(partnerJob!=null){
                 while(partnerJob.Output.TryDequeue(out string partnerLine)){
                     if(partnerLine.StartsWith("ANSWER|")&&partnerAnswer!=null){var reply=JsonUtility.FromJson<PartnerReply>(File.ReadAllText(partnerLine.Substring(7)));partnerAnswer.text=reply.answer;SetStatus("Resposta em áudio local.");}
                     else if(partnerLine.StartsWith("READY|"))SetStatus(partnerLine.Substring(6));
                 }
-                if(partnerJob.Finished){partnerSucceeded=partnerJob.ExitCode==0;if(partnerJob.ExitCode!=0)SetStatus(partnerJob.FriendlyError("Falha no parceiro Dingous."),true);partnerJob.Dispose();partnerJob=null;}
+                if(partnerJob.Finished){partnerSucceeded=partnerJob.ExitCode==0;if(partnerJob.ExitCode!=0)SetStatus(partnerJob.FriendlyError("Falha no parceiro Dingous."),true);partnerJob.Dispose();partnerJob=null;bool resumeListening=resumeVoice;resumeVoice=false;if(resumeListening&&partnerMode&&voiceToggle!=null){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);}}
             }
             if(laboratory!=null){
                 while(laboratory.Output.TryDequeue(out string labLine))if(labLine.StartsWith("READY|"))SetStatus(labLine.Substring(6)+" · executando no avatar.");
@@ -692,7 +709,7 @@ namespace WebcamAvatar
         void OnDestroy()
         {
             generator?.Dispose();trackerJob?.Dispose();broadcaster?.Stop();cameraJob?.Dispose();
-            if(partnerJob!=null)partnerJob.Dispose();if(laboratory!=null)laboratory.Dispose();if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
+            if(voiceListener!=null)voiceListener.Dispose();if(partnerJob!=null)partnerJob.Dispose();if(laboratory!=null)laboratory.Dispose();if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
             if(backdrop!=null)Destroy(backdrop);
             foreach(var texture in uiTextures)Destroy(texture);
         }
