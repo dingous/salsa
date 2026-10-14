@@ -17,6 +17,8 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT.parent
+sys.path.insert(0,str(PROJECT / 'Tracker'))
+import dingous_lab
 VERSION = 2
 REVISION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 TOKEN = secrets.token_urlsafe(32)
@@ -385,7 +387,11 @@ def handler_for(bridge, port):
                     body = json.loads(data)
                     if not isinstance(body, dict):
                         raise ValueError('A operação precisa de um objeto JSON.')
-                    if path == '/api/tracking/start':
+                    if path == '/api/laboratory/generate':
+                        plan=dingous_lab.validate(dingous_lab.DEMO) if body.get('demo') is True else dingous_lab.generate(body.get('prompt',''))
+                        self.reply(200,dict(plan=plan,frames=list(dingous_lab.frames(plan)),source='programmed-demo' if body.get('demo') is True else 'ollama-local'))
+                        return
+                    elif path == '/api/tracking/start':
                         bridge.start_tracking(body.get('camera', 0), client, body.get('poseQuality','full'))
                     elif path == '/api/tracking/stop':
                         bridge.stop_tracking(client)

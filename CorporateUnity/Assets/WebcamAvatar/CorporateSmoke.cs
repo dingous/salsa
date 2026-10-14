@@ -31,6 +31,25 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--lab-only")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;ui.avatar.previewAnimation=false;
+                    var rig=ui.Vrm.Instance.Runtime.ControlRig;var wrist=rig.GetBoneTransform(HumanBodyBones.LeftHand);var initial=wrist.position;float movement=0,smile=0;bool packets=false;
+                    string planPath=Path.Combine(Application.temporaryCachePath,"dingous-demo-"+mode+".json");
+                    var labArgs=new List<string>{"--port",ui.tracking.port.ToString(),"--output",planPath};
+                    if(Array.IndexOf(Environment.GetCommandLineArgs(),"--ai-lab")>=0){labArgs.Add("--plan");labArgs.Add(Path.GetFullPath("Validation/dingous-ai-plan.json"));}else labArgs.Add("--demo");
+                    using(var labJob=new LocalJob("dingous_lab.py",labArgs.ToArray())){
+                        float deadline=Time.realtimeSinceStartup+35;
+                        while(!labJob.Finished&&Time.realtimeSinceStartup<deadline){packets|=ui.tracking.Connected;movement=Mathf.Max(movement,Vector3.Distance(initial,wrist.position));smile=Mathf.Max(smile,ui.tracking.GetExpression("mouthSmileLeft"));yield return null;}
+                        Check(labJob.Finished&&labJob.ExitCode==0,"Dingous programmed demo process model "+mode);
+                    }
+                    Check(packets&&movement>.15f&&smile>.5f,"Dingous expressions and arm motion reach actual rig model "+mode);
+                    Check(File.Exists(planPath),"Dingous reproducible plan saved model "+mode);
+                }
+                Call(ui,"ShowLaboratory");
+                yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(Application.temporaryCachePath,"dingous-laboratory.png")));
+                Debug.Log("CORPORATE_LAB_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--face-only")>=0){
                 using(var faceUdp=new UdpClient())foreach(int mode in new[]{0,1}){
                     Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;yield return null;

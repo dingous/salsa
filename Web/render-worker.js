@@ -6,6 +6,7 @@ import {countHands} from './tracking-utils.js';
 import {HumanAppearance} from './makehuman-appearance.js';
 
 let renderer,scene,camera,loader,vrm,rig,token='',client='',cameraSession=null,frame=null,demo=false,virtual=false,sending=false,framingMode='bust',elapsed=0,previous=performance.now(),version=0,renderFailed=false;
+let labFrames=[],labStart=0;
 let failedSince=0,nextSend=0;
 let presentationMode='professional',keyLight,fillLight;
 let mirrored=true,hosted=false;
@@ -63,7 +64,7 @@ async function poll() {
 async function tick() {
   if(renderFailed)return;
   const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;elapsed+=dt;
-  try{rig?.update(frame,dt,demo,elapsed);humanAppearance?.morphs();renderer.render(scene,camera);}catch(error){renderFailed=true;virtual=false;message('renderError',{error:error.message});return;}
+  try{const index=Math.floor((now-labStart)/1000*30);const labFrame=labFrames[index];if(labFrames.length&&index>=labFrames.length){labFrames=[];frame=null;}rig?.update(labFrame||frame,dt,labFrame?false:demo,elapsed);humanAppearance?.morphs();renderer.render(scene,camera);}catch(error){renderFailed=true;virtual=false;message('renderError',{error:error.message});return;}
   if(virtual&&!sending&&now>=nextSend) {
     sending=true;
     const session=cameraSession;
@@ -88,12 +89,13 @@ self.onmessage=async event=>{
       fillLight=new THREE.HemisphereLight('#fff1df','#8995c0',2);scene.add(fillLight);keyLight=new THREE.DirectionalLight('#fff5e8',2);keyLight.position.set(-2,3,3);scene.add(keyLight);
       humanSettings=data.humanSettings||{};loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser));await load(data.source||new URL('assets/CorporateHuman.vrm',self.location.href).href);if(!hosted)poll();setInterval(tick,1000/30);
     }catch(error){message('error',{error:error.message});}
-  }else if(data.type==='load')load(data.source);
+  }else if(data.type==='laboratory'){labFrames=data.frames||[];labStart=performance.now();frame=null;demo=false;}
+  else if(data.type==='load')load(data.source);
   else if(data.type==='demo')demo=data.value;
   else if(data.type==='appearance'){appearanceColors=data.value||{};applyAppearance();}
   else if(data.type==='humanAppearance'){humanSettings=data.value||{};humanAppearance?.apply(humanSettings);applyAppearance();}
   else if(data.type==='mirror'){mirrored=!!data.value;rig?.setMirror(mirrored);}
-  else if(data.type==='trackingFrame'){frame=data.frame;message('tracking',{face:!!frame?.face,pose:!!frame?.pose,hands:countHands(frame)});}
+  else if(data.type==='trackingFrame'){labFrames=[];frame=data.frame;message('tracking',{face:!!frame?.face,pose:!!frame?.pose,hands:countHands(frame)});}
   else if(data.type==='virtual'){if(cameraSession!==(data.session||null)){failedSince=0;nextSend=0;}virtual=data.value;cameraSession=data.session||null;}
   else if(data.type==='token'){token=data.token;virtual=false;cameraSession=null;}
   else if(data.type==='framing'){framingMode=data.value;framing();}

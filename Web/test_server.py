@@ -54,6 +54,18 @@ class BridgeTests(unittest.TestCase):
     def auth(self, client='tab-a'):
         return {'X-Avatar-Token': server.TOKEN, 'X-Avatar-Client': client}
 
+    def test_laboratory_demo_is_explicit_and_finite(self):
+        with self.request('/api/laboratory/generate',json.dumps({'demo':True}).encode(),self.auth()) as response: result=json.loads(response.read())
+        self.assertEqual(result['source'],'programmed-demo');self.assertEqual(len(result['frames']),540)
+        self.assertEqual(result['plan']['version'],1)
+    def test_laboratory_ai_uses_validated_local_generator(self):
+        with patch.object(server.dingous_lab,'generate',return_value=server.dingous_lab.validate(server.dingous_lab.DEMO)) as generate:
+            with self.request('/api/laboratory/generate',json.dumps({'prompt':'sorria'}).encode(),self.auth()) as response: result=json.loads(response.read())
+            generate.assert_called_once_with('sorria');self.assertEqual(result['source'],'ollama-local')
+    def test_laboratory_requires_session(self):
+        with self.assertRaises(urllib.error.HTTPError) as error:self.request('/api/laboratory/generate',b'')
+        self.assertEqual(error.exception.code,403)
+
     def test_origin_and_token_required(self):
         for headers in ({}, {'X-Avatar-Token': server.TOKEN, 'Origin': 'https://example.com'}, {'X-Avatar-Token': server.TOKEN, 'Host': 'evil.test'}):
             with self.assertRaises(urllib.error.HTTPError) as caught:

@@ -28,6 +28,8 @@ namespace WebcamAvatar
         InputField nameField;
         RawImage referenceImage, avatarImage;
         GameObject photoPlaceholder;
+        LocalJob laboratory;
+        InputField laboratoryPrompt;
         Texture2D reference;
         string selectedPhoto, draft;
         bool busy, presentation;
@@ -215,9 +217,32 @@ namespace WebcamAvatar
             Button("Usar humano corporativo",parent,24,304,322,42,()=>{if(!busy)StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));});
             Button("Usar gerador procedural",parent,24,360,322,42,()=>{if(busy)return;Vrm.UseProcedural();avatar.Profile.vrmSource=null;RefreshModelStatus();SetStatus("Gerador procedural selecionado. Gere e personalize pela foto.");});
             Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
-            Button("Restaurar cores originais do VRM",parent,24,466,322,30,()=>{Vrm.ResetAppearance();SetStatus("Materiais originais restaurados.");});
+            Button("Laboratório Dingous",parent,24,466,156,30,ShowLaboratory);
+            Button("Restaurar cores",parent,190,466,156,30,()=>{Vrm.ResetAppearance();SetStatus("Cores originais restauradas.");});
             Label("MakeHuman / MPFB · assets CC0\nModelo humano com expressões ARKit",parent,24,500,322,44,11,muted);
         }
+        void ShowLaboratory(){
+            if(advancedPanel!=null)Destroy(advancedPanel);
+            advancedPanel=Panel("Laboratório Dingous",responsive.Content,116,256,370,558,panel).gameObject;
+            Label("DINGOUS · LABORATÓRIO",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
+            Label("Descreva expressões e gestos para gerar uma sequência. IA local Ollama. Sua webcam não é usada neste teste.",advancedPanel.transform,24,72,322,90,14,muted);
+            laboratoryPrompt=Input("Ex.: sorria, pisque e acene",advancedPanel.transform,24,178,322,90);laboratoryPrompt.lineType=InputField.LineType.MultiLineNewline;laboratoryPrompt.characterLimit=1000;
+            Button("Gerar e executar com IA",advancedPanel.transform,24,290,322,44,()=>StartLaboratory(false),true);
+            Button("Executar demonstração programada",advancedPanel.transform,24,346,322,40,()=>StartLaboratory(true));
+            Button("Parar teste",advancedPanel.transform,24,400,154,36,StopLaboratory);
+            Button("Fechar painel",advancedPanel.transform,190,400,156,36,()=>{Destroy(advancedPanel);advancedPanel=null;});
+            Label("Modelos Cartoon e Corporativo. Planos salvos localmente em Laboratory. Para IA: Ollama + qwen2.5:3b.",advancedPanel.transform,24,454,322,76,12,muted);responsive.LayoutAdvanced();
+        }
+        void StartLaboratory(bool demo){
+            StopLaboratory();if(trackerJob!=null)ToggleTracking();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
+            try{
+                string path=Path.Combine(Storage,"Laboratory",DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".json");
+                var args=new List<string>{"--port",tracking.port.ToString(),"--output",path};
+                if(demo)args.Add("--demo");else {args.Add("--prompt");args.Add(laboratoryPrompt.text);}
+                laboratory=new LocalJob("dingous_lab.py",args.ToArray());SetStatus(demo?"Executando demonstração programada.":"Ollama está gerando seu plano de expressões e movimentos…");
+            }catch(Exception e){SetStatus(e.Message,true);}
+        }
+        void StopLaboratory(){if(laboratory!=null){laboratory.Dispose();laboratory=null;SetStatus("Teste Dingous encerrado.");}}
         void SelectVrm()
         {
             if(busy)return;
@@ -517,6 +542,7 @@ namespace WebcamAvatar
 
         void ToggleTracking()
         {
+            StopLaboratory();
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
             try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
             catch(Exception e){SetStatus(e.Message,true);}
@@ -612,6 +638,10 @@ namespace WebcamAvatar
         {
             if(canvas==null)return;
             if(rebuildPending && Time.unscaledTime-lastDetailChange>.18f){avatar.Rebuild(avatar.Profile);rebuildPending=false;}
+            if(laboratory!=null){
+                while(laboratory.Output.TryDequeue(out string labLine))if(labLine.StartsWith("READY|"))SetStatus(labLine.Substring(6)+" · executando no avatar.");
+                if(laboratory.Finished){string result=laboratory.ExitCode==0?"Sequência concluída. Plano salvo na biblioteca de testes.":laboratory.FriendlyError("Falha no laboratório Dingous.");bool error=laboratory.ExitCode!=0;laboratory.Dispose();laboratory=null;SetStatus(result,error);}
+            }
             if(UnityEngine.Input.GetKeyDown(KeyCode.F11))SetPresentation(!presentation);
             if(presentation && UnityEngine.Input.GetKeyDown(KeyCode.Escape))SetPresentation(false);
             // Keep the isolated render target alive even in presentation mode.
@@ -629,7 +659,7 @@ namespace WebcamAvatar
         void OnDestroy()
         {
             generator?.Dispose();trackerJob?.Dispose();broadcaster?.Stop();cameraJob?.Dispose();
-            if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
+            if(laboratory!=null)laboratory.Dispose();if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
             if(backdrop!=null)Destroy(backdrop);
             foreach(var texture in uiTextures)Destroy(texture);
         }
