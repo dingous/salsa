@@ -1,5 +1,11 @@
 # Dingous por voz e ChatTrade
 
+## Voz confortável, local
+
+Windows usa Microsoft Daniel em pt-BR, instalada nesta máquina, com velocidade -1, volume 85% e pausa de 280 ms entre parágrafos. Se Daniel não estiver instalada, usa outra voz local pt-BR; se nenhuma existir, informa o erro. Não usa serviço pago de síntese. Texto é escapado por PromptBuilder e não interpretado como SSML. O mesmo script atende Cartoon e Corporativo no modo Parceiro. O script aceita -VoiceName e -Rate para ajuste e -OutputPath para gerar uma amostra WAV.
+
+Web prefere Daniel entre as vozes locais pt-BR do navegador, com velocidade 0,92 e volume 85%. A disponibilidade e o timbre dependem do navegador; a escuta pela ponte usa a voz Windows. Respostas do parceiro foram ajustadas para frases claras, passos concretos, menos bordões e honestidade sobre informações e ações indisponíveis.
+
 Ao escolher Parceiro Dingous, a escuta do microfone padrão deste computador inicia automaticamente. Desmarque Escutar Dingous para desligar. Diga “Dingous, sua pergunta” numa frase, ou “Dingous” seguido da pergunta na janela de ativação. Funciona enquanto o aplicativo/ponte estiver aberto, não é serviço permanente após fechar Windows.
 
 ASR Whisper base int8 em CPU, 4 threads. Modelo e runtime foram instalados nesta máquina e copiados para publish/Windows/Tracker. Áudio de microfone fica em memória; arquivos de resposta contêm texto. Não há envio de áudio para serviços de transcrição. O reconhecimento da palavra é baseado na transcrição e aceita Dingous/dingus/dingos/dingo; não é detector de palavra personalizado treinado. Microfone fica pausado enquanto transcreve/responde/fala, evitando ouvir a própria resposta. Um bloqueio local impede duas instâncias simultâneas de escuta. Web usa o microfone da máquina da ponte local, não o microfone de outro dispositivo remoto; a sessão pertence à aba autenticada e expira sem polling por 20 segundos.
