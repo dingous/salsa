@@ -103,3 +103,14 @@ PASS: no browser console errors during these UI tests.
 PASS: motion regressions, six hand detection cases, fourteen server regressions and multiple-server nginx route regression.
 Azure ACR run cq1d succeeded; candidate digest sha256:91040fe1b319e0bb7febe16a186d37c9ec6bda92cdd2f58a51dbc53f48bd5c70. Cookie stores settings only; imported VRM bytes remain in browser IndexedDB and are not uploaded to the server.
 PUBLIC COOKIE RELEASE PASS: HTTPS deployment verification completed for release 2026-10-14-cookie-appearance. 14 public assets, all declared hashes (including normalized deployment HTML), module/WASM/model MIME types, trailing-slash redirect and permissions/CSP headers verified.
+
+
+Advanced pose release, 2026-10-14
+--------------------------------
+PASS: 46 deterministic real-VRM checks, including both mirror modes and elbow/knee flexion limits.
+PASS: One Euro filter tests for rest jitter reduction, impossible spike rejection, motion convergence and invalid input.
+PASS: Full and Heavy browser model initialization and inference on blank images; Full and Heavy Python inference.
+PASS: Heavy processed three real webcam frames with face/pose/hand tasks and no preview, exited successfully; this is pipeline verification, not a precision benchmark.
+PASS: 15 backend regressions; guest-cookie regression and Heavy selection restored after reload.
+PASS: public HTTPS release 2026-10-14-advanced-pose; 17 public assets, code hashes, MIME types, redirect, camera policy and WASM CSP verified. ACR run cq1e succeeded; deployed digest sha256:437394ff44dec174a1c2063762f568bb42424bd50a2865bccf1fba8c7a5f4b54.
+Native Unity/Python now defaults to Full. Adaptive filtering and joint constraints apply to the web rig; native Unity retargeting is unchanged. Models are official Google MediaPipe pose Full/Heavy float16 v1. Heavy has higher processing cost; no FPS or universal accuracy guarantee is inferred from these tests.
