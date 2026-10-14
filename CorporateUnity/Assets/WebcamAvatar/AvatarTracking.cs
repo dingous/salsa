@@ -192,7 +192,14 @@ namespace WebcamAvatar
             // Keep values between frames so expressive geometry never snaps on packet boundaries.
             var keys = new List<string>(smoothed.Keys);
             foreach(var s in expressions) if(!smoothed.ContainsKey(s.Key)) { smoothed[s.Key]=0; keys.Add(s.Key); }
-            foreach(var key in keys) smoothed[key]=Mathf.Lerp(smoothed[key],Mathf.Clamp01(Expression(key)*expressionGain),t);
+            foreach(var key in keys){
+                float target=Mathf.Clamp01(Expression(key)*expressionGain);
+                if(key.StartsWith("eyeBlink")){
+                    target=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.15f,.65f,target));
+                    float rate=target>smoothed[key]?80:35;
+                    smoothed[key]=Mathf.Lerp(smoothed[key],target,1-Mathf.Exp(-rate*Time.unscaledDeltaTime));
+                }else smoothed[key]=Mathf.Lerp(smoothed[key],target,t);
+            }
             if(head!=null) {
                 SetDemoPose(points,t); head.localRotation=Quaternion.Slerp(head.localRotation,rotation,t);
                 leftEye.localScale=new Vector3(.07f,Mathf.Lerp(.09f,.006f,Expression("eyeBlinkLeft")),.035f);

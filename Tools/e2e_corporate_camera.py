@@ -1,5 +1,6 @@
 """Real Unity -> JPEG bridge -> OBS DirectShow receiver; saves avatar output only."""
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -16,7 +17,7 @@ info = subprocess.STARTUPINFO()
 info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 info.wShowWindow = 0
 gestures = '--gestures' in sys.argv
-process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), *(['--cartoon'] if '--cartoon' in sys.argv else []), *(['--preview'] if '--preview' in sys.argv else []), '-logFile', str(log)], startupinfo=info)
+process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), *(['--cartoon'] if '--cartoon' in sys.argv else []), *(['--preview'] if '--preview' in sys.argv else []), *(['--face-gestures'] if '--face-gestures' in sys.argv else []), '-logFile', str(log)], startupinfo=info)
 receiver = None
 try:
     deadline = time.monotonic() + 35
@@ -58,11 +59,15 @@ try:
     text = log.read_text(encoding='utf-8', errors='replace')
     passed = code == 0 and 'CORPORATE_LIVE_RESULT=True' in text
     result = {'result':'PASS' if passed else 'FAIL', 'avatar':'cartoon' if '--cartoon' in sys.argv else 'corporate', 'frames':count, 'seconds':round(elapsed,2), 'receiverFps':round(fps,2),
+              'validationScope':'unilateral winks and reopening' if '--face-gestures' in sys.argv else 'arms head reach and fingers' if gestures else 'virtual transmission',
               'resolution':[1280,720], 'physicalTracking':True, 'virtualDriver':'OBS/DirectShow',
               'cleanScreenIncluded':not gestures, 'cleanScreenMotionSource':'real webcam' if gestures else 'animated avatar preview',
               'savedRawWebcamImages':False,
               'faceSeen':'face=True' in text, 'poseSeen':'pose=True' in text, 'handsSeen':'hands=True' in text}
-    if gestures:
+    if '--face-gestures' in sys.argv:
+        wink = re.search(r'CORPORATE_WINK_SAMPLES left=(\d+) right=(\d+) reopened=(\d+)', text)
+        result['winkRenderSamples'] = dict(zip(('left','right','reopened'), map(int,wink.groups()))) if wink else {}
+    elif gestures:
         result['gestureAudit'] = json.loads((ROOT / 'CorporateUnity/Validation/corporate-gesture-audit.json').read_text(encoding='utf-8'))
     (ROOT / f'Validation/{avatar_model}-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result))

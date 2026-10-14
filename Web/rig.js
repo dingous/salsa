@@ -5,6 +5,7 @@ export class AvatarRig {
   constructor(vrm) {
     this.vrm=vrm;this.bones=new Map();this.rest=new Map();this.world=new Map();this.directions=new Map();this.palms=new Map();this.origin=vrm.scene.position.clone();this.neutral=new THREE.Quaternion();this.headRaw=new THREE.Quaternion();this.center=null;
     this.filtered=new Map();this.lastSeen=new Map();this.clock=0;this.dt=1/30;
+    for(const expression of vrm.expressionManager?.expressions||[]){expression.overrideBlink="none";expression.isBinary=false;}
     this.mirror=true;
     this.poseFilter=new PoseFilter();this.poseFrame=null;this.poseElapsed=0;
     this.handFilters={left:new PoseFilter(),right:new PoseFilter()};this.handFrames={};this.handElapsed={left:0,right:0};
@@ -95,7 +96,8 @@ export class AvatarRig {
     const E=name=>{
       if(demo)return name.startsWith('eyeBlink')?(time%4.4>4.1?Math.sin((time%4.4-4.1)/.3*Math.PI):0):name.startsWith('mouthSmile')?.55:name==='jawOpen'?Math.max(0,Math.sin(time*3))*.25:0;
       if(this.mirror)name=name.endsWith('Left')?name.slice(0,-4)+'Right':name.endsWith('Right')?name.slice(0,-5)+'Left':name;
-      return weights[name]||0;
+      const value=weights[name]||0;
+      return name.startsWith('eyeBlink')?THREE.MathUtils.smoothstep(value,.15,.65):value;
     };
     const mapping={happy:(E('mouthSmileLeft')+E('mouthSmileRight'))/2,angry:(E('browDownLeft')+E('browDownRight'))/2,sad:(E('mouthFrownLeft')+E('mouthFrownRight'))/2,surprised:E('browInnerUp')*E('jawOpen'),aa:E('jawOpen')*(1-E('mouthClose'))*(1-E('mouthPucker')),ou:E('mouthPucker'),oh:E('mouthFunnel'),ee:(E('mouthStretchLeft')+E('mouthStretchRight'))/2,ih:(E('mouthPressLeft')+E('mouthPressRight'))/4,blinkLeft:E('eyeBlinkLeft'),blinkRight:E('eyeBlinkRight')};
     const expressions=this.vrm.expressionManager;
@@ -104,7 +106,9 @@ export class AvatarRig {
       for(const expression of expressions.expressions) {
         const raw=mapping[expression.expressionName]??E(expression.expressionName);
         const value=raw*(/^(happy|angry|sad|surprised)$/.test(expression.expressionName)?this.expressionScale??1:1);
-        const current=expressions.getValue(expression.expressionName)||0;expressions.setValue(expression.expressionName,THREE.MathUtils.lerp(current,value,t));
+        const current=expressions.getValue(expression.expressionName)||0;const blink=/^(blink|blinkLeft|blinkRight|eyeBlinkLeft|eyeBlinkRight)$/.test(expression.expressionName);
+        const response=blink?1-Math.exp(-(value>current?80:35)*this.dt):t;
+        expressions.setValue(expression.expressionName,THREE.MathUtils.lerp(current,value,response));
       }
     }
     if(this.vrm.lookAt){this.vrm.lookAt.yaw=THREE.MathUtils.lerp(this.vrm.lookAt.yaw,(E('eyeLookOutLeft')+E('eyeLookInRight')-E('eyeLookInLeft')-E('eyeLookOutRight'))*12,t);this.vrm.lookAt.pitch=THREE.MathUtils.lerp(this.vrm.lookAt.pitch,(E('eyeLookUpLeft')+E('eyeLookUpRight')-E('eyeLookDownLeft')-E('eyeLookDownRight'))*8,t);}

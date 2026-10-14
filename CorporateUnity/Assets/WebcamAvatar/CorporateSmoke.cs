@@ -31,6 +31,27 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--face-only")>=0){
+                using(var faceUdp=new UdpClient())foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;yield return null;
+                    ui.avatar.previewAnimation=false;
+                    foreach(bool mirror in new[]{false,true})foreach(bool left in new[]{true,false}){
+                        ui.tracking.mirror=mirror;
+                        var clear=new TrackingFrame{face=true,pose=false,shapes=Array.Empty<Shape>(),points=Array.Empty<Point>(),rotation=Array.Empty<float>()};
+                        yield return Send(faceUdp,clear,ui.tracking.port,.3f);
+                        clear.shapes=new[]{new Shape{name=left?"eyeBlinkLeft":"eyeBlinkRight",value=.7f},new Shape{name="mouthSmileLeft",value=.8f},new Shape{name="mouthSmileRight",value=.8f}};
+                        yield return Send(faceUdp,clear,ui.tracking.port,.08f);
+                        bool outputLeft=mirror?!left:left;var exp=ui.Vrm.Instance.Runtime.Expression;
+                        float closed=0,open=0;
+                        foreach(var key in exp.ExpressionKeys){
+                            if(key.Name==(outputLeft?"eyeBlinkLeft":"eyeBlinkRight")||key.Preset==(outputLeft?ExpressionPreset.blinkLeft:ExpressionPreset.blinkRight))closed=Mathf.Max(closed,exp.ActualWeights.TryGetValue(key,out var weight)?weight:0);
+                            if(key.Name==(outputLeft?"eyeBlinkRight":"eyeBlinkLeft")||key.Preset==(outputLeft?ExpressionPreset.blinkRight:ExpressionPreset.blinkLeft))open=Mathf.Max(open,exp.ActualWeights.TryGetValue(key,out var weight)?weight:0);
+                        }
+                        Check(closed>.9f&&open<.1f,$"80ms unilateral blink model {mode} left {left} mirror {mirror}");
+                    }
+                }
+                Debug.Log("CORPORATE_FACE_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             var packetCounterAudit=new GestureAudit();packetCounterAudit.Sample(ui);packetCounterAudit.Sample(ui);
             Check(packetCounterAudit.samples==1,"Gesture audit counts each tracking packet once");
             var filter=new AdaptivePoseFilter();float rawEnergy=0,filteredEnergy=0;Point[] stable=null;
@@ -64,6 +85,8 @@ namespace WebcamAvatar
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-live-e2e")>=0) {
                 if(Array.IndexOf(Environment.GetCommandLineArgs(),"--cartoon")>=0){Call(ui,"SelectAvatarMode",0);while(ui.Vrm.Loading)yield return null;yield return null;}
                 bool gestures=Array.IndexOf(Environment.GetCommandLineArgs(),"--gestures")>=0;
+                bool faceGestures=Array.IndexOf(Environment.GetCommandLineArgs(),"--face-gestures")>=0;
+                int leftWinks=0,rightWinks=0,reopened=0;
                 var audit=new GestureAudit();
                 if(Array.IndexOf(Environment.GetCommandLineArgs(),"--preview")>=0)Call(ui,"SetTrackingPreview",true);
                 Call(ui,"ToggleTracking");Call(ui,"ToggleCamera");
@@ -73,12 +96,24 @@ namespace WebcamAvatar
                     if(!cameraReady && ui.GetComponent<VirtualCameraOutput>().Sending){cameraReady=true;Debug.Log("CORPORATE_LIVE_CAMERA_READY");}
                     faceSeen|=ui.tracking.FaceDetected;poseSeen|=ui.tracking.PoseDetected;handsSeen|=ui.tracking.HandsDetected;
                     if(gestures&&captureStart<0&&cameraReady&&ui.tracking.Connected){captureStart=Time.realtimeSinceStartup;activeAudit=audit;auditUi=ui;Debug.Log("CORPORATE_GESTURES_READY");}
+                    if(faceGestures&&captureStart>=0){
+                        float l=ui.tracking.GetExpression("eyeBlinkLeft"),r=ui.tracking.GetExpression("eyeBlinkRight"),ml=0,mr=0;
+                        var ex=ui.Vrm.Instance.Runtime.Expression;
+                        foreach(var key in ex.ExpressionKeys){
+                            if(key.Name=="eyeBlinkLeft"||key.Preset==ExpressionPreset.blinkLeft)ml=Mathf.Max(ml,ex.ActualWeights.TryGetValue(key,out var actual)?actual:0);
+                            if(key.Name=="eyeBlinkRight"||key.Preset==ExpressionPreset.blinkRight)mr=Mathf.Max(mr,ex.ActualWeights.TryGetValue(key,out var actual)?actual:0);
+                        }
+                        if(l>.7f&&r<.25f&&ml>.85f&&mr<.25f)leftWinks++;
+                        if(r>.7f&&l<.25f&&mr>.85f&&ml<.25f)rightWinks++;
+                        if(l<.15f&&r<.15f&&ml<.15f&&mr<.15f)reopened++;
+                    }
                     if(!gestures&&!clean && Time.realtimeSinceStartup-start>15){clean=true;ui.avatar.previewAnimation=true;ui.avatar.previewExpressionPreset=4;Call(ui,"SetPresentation",true);}
                     yield return null;
                 }
                 activeAudit=null;
                 Check(connectedAt>=0,"Physical webcam produced valid tracking packets");
-                if(gestures){audit.Save(Path.Combine(root,"corporate-gesture-audit.json"));Check(audit.Passed,"Real webcam head reach, arms and finger curl on both sides");}
+                if(gestures){audit.Save(Path.Combine(root,"corporate-gesture-audit.json"));if(!faceGestures)Check(audit.Passed,"Real webcam head reach, arms and finger curl on both sides");}
+                if(faceGestures){Debug.Log($"CORPORATE_WINK_SAMPLES left={leftWinks} right={rightWinks} reopened={reopened}");Check(leftWinks>5&&rightWinks>5&&reopened>5,"Real unilateral winks and eyelid reopening");}
                 Debug.Log($"CORPORATE_LIVE_DETECTIONS face={faceSeen} pose={poseSeen} hands={handsSeen}");
                 var broadcaster=ui.GetComponent<VirtualCameraOutput>();
                 Check(broadcaster.Sending && broadcaster.Error==null,"Unity camera connected to OBS bridge on TCP 5060");

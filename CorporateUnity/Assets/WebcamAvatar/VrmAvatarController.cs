@@ -62,6 +62,9 @@ namespace WebcamAvatar
                 candidate=await Vrm10.LoadPathAsync(path,canLoadVrm0X:true,showMeshes:false);
                 if(candidate==null)throw new IOException("O arquivo nÃ£o contÃ©m um avatar VRM compatÃ­vel.");
                 candidate.UpdateType=Vrm10Instance.UpdateTypes.None;
+                // Live eyelids must remain independent of preset emotion overrides.
+                foreach(var entry in candidate.Vrm.Expression.Clips){entry.Clip.OverrideBlink=UniGLTF.Extensions.VRMC_vrm.ExpressionOverrideType.none;entry.Clip.IsBinary=false;}
+                candidate.Runtime.Expression.Reload(candidate);
                 var rig=candidate.Runtime.ControlRig;
                 if(rig==null || rig.GetBoneTransform(HumanBodyBones.Head)==null)throw new IOException("O modelo nÃ£o possui rig humanoide vÃ¡lido.");
                 // VRM faces +Z. Our studio camera is on -Z.
