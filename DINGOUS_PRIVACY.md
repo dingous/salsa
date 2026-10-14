@@ -1,0 +1,9 @@
+# Privacidade do Parceiro Dingous
+
+Proteção de ambiente compartilhado ativada por padrão, também quando uma configuração antiga não contém o campo sharedEnvironmentProtection. Enquanto ativada, o runtime não lê memória pessoal, não inclui orientações administrativas/perfis de agentes no prompt, bloqueia consultas de chat/histórico ChatTrade e não reproduz voz. Web respeita speechAllowed=false e Windows bloqueia a criação do processo de síntese. Respostas locais genéricas continuam em texto; a pergunta e a resposta ainda aparecem na tela e nos arquivos de texto do parceiro. Não use tela compartilhada para digitar informações privadas.
+
+Controle central no admin `/admin/dingous-parceiro`: Proteger informações pessoais em ambiente compartilhado. Desativar libera voz e contexto pessoal: somente em ambiente privado. Não há confirmação automática do ambiente nesta entrega. Tracker configura num_faces=1 e num_poses=1, portanto não conta participantes; também não detecta chamadas Teams/Zoom/WhatsApp. Desconhecido fica protegido por padrão. Não afirmamos detecção de reuniões ou pessoas fora do campo da câmera.
+
+Reinicie aplicativo Windows e ponte web para carregar os módulos atualizados. Não cancela áudio iniciado por versões anteriores antes do reinício. A nova política do admin exige publicar a versão atualizada do ChatTrade. Testes verificam ausência de memória/instruções/perfil pessoal no prompt, bloqueio do cliente ChatTrade e ausência de processo TTS no modo protegido.
+
+Empresa Dingous Avatar: usuário autenticou no admin de produção, mas a tela de empresas atual não fornece criação. Foi preparada ação ROOT com antiforgery `/admin/empresas/criar-dingous-avatar` usando ICompanyService, slug dingous-avatar e ShowOnFront=false, sem copiar dados ou credenciais. Ainda não publicada nem executada no banco real; não existe confirmação de empresa criada.

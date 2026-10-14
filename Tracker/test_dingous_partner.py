@@ -9,7 +9,7 @@ class PartnerTests(unittest.TestCase):
  def test_memory_in_prompt(self):
   with tempfile.TemporaryDirectory() as folder:
    root=Path(folder);partner.remember('Prefiro português',root)
-   with patch('dingous_partner.urllib.request.urlopen',return_value=io.BytesIO(b'{"response":"Ola"}')) as call:
+   with patch('dingous_partner.load_settings',return_value=dict(partner.load_settings(),sharedEnvironmentProtection=False)),patch('dingous_partner.urllib.request.urlopen',return_value=io.BytesIO(b'{"response":"Ola"}')) as call:
     result=partner.answer('Quem voce e?',root);self.assertFalse(result['fineTuned']);self.assertIn('Prefiro',json.loads(call.call_args.args[0].data)['prompt'])
  def test_approval_is_separate(self):
   with tempfile.TemporaryDirectory() as folder:
