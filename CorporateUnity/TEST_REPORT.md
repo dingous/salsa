@@ -172,3 +172,13 @@ Both physical-camera runs used current binaries, 75-second gesture windows, no s
 Cartoon: one tracked wrist approached the nose at 0.194 m and avatar head pivot at 0.150 m; the other wrist/head gesture and arm excursion were not recorded with sufficient confidence. Detected finger curl excursions were only 11.6 / 3.0 degrees, below the required 20 degrees. Corporate: both head-reach gestures recorded (avatar head-pivot distances 0.285 / 0.194 m). One arm excursion was only 0.127 m (minimum 0.25 m); one hand curl excursion was only 12.7 degrees (minimum 20 degrees). The other arm/hand met those criteria.
 
 These results do not establish whether missing coverage arose from framing, detector confidence, gesture execution or side assignment. No threshold was relaxed and no detection data was invented. Wider framing and a side-by-side repeat were requested. Artifacts: Validation/cartoon-camera-result.json, Validation/corporate-camera-result.json, Validation/cartoon-live-player.log, Validation/corporate-live-player.log. Raw webcam images were not saved.
+
+## Wider-framing repeat — 2026-10-14
+
+User authorized another real capture for both models. Each virtual receiver again delivered 1801 frames at 1280x720 / 30.02 FPS. Both complete audits remained FAIL; no thresholds were relaxed.
+
+Cartoon: both near-head observations passed (avatar head distances 0.160 / 0.095 m) and both finger curl excursions passed (29.9 / 37.2 degrees tracked). Arm height excursions were 0.192 / 0.209 m, below 0.25 m.
+
+Corporate: both finger curl excursions passed (50.2 / 42.5 degrees tracked). One near-head observation passed; the other tracked wrist-to-nose minimum was 0.240 m vs a 0.23 m threshold, so avatar head proximity was not accepted for that side. Arm height excursions were 0.118 / 0.121 m, below 0.25 m.
+
+The runner uses StudioUI's default Webcam 0. User was asked to confirm whether this is the camera used for their gestures before another run or tracker changes. Missing amplitude does not by itself establish a rig bug; camera source, framing and pose detection confidence remain unresolved. Model-specific logs/results contain the repeated run; first-run results were preserved locally as Validation/cartoon-camera-first-result.json and Validation/corporate-camera-first-result.json. No raw webcam images saved.
