@@ -1,18 +1,23 @@
 {
   "app": "AvatarStudio",
-  "release": "2026-10-14-cookie-appearance",
+  "release": "2026-10-14-advanced-pose",
   "tracking": "browser-local",
-  "motionChecks": 42,
+  "motionChecks": 46,
   "files": {
-    "index.html": "a1e33d16c458c120b10532cb9eb6c9084de5cafd506ac770cf3e0e0a7669b304",
+    "index.html": "dc55a93ea00e23da6548daf2ba78033b79ea25c02a62293abe60c4055b07378c",
     "studio.css": "71033a8c75a0d4afda9f7577252c621ff99756997b9154b26f6a783afdda8630",
-    "studio.js": "e16342bd3b006d1fffdb401866556052ee2ee548b98cfbdbbe5d82fc2ead3e99",
-    "rig.js": "ab3c2c23fd07466e6300be427de4ef286a98af19cda5530580877cd88630bf06",
+    "studio.js": "deb2c5300c992689f6826c719ef1ea55f638634f138803ef4dd20ec1457d43e2",
+    "rig.js": "f664532d6e7f6295028bb078e4a7bcd3cff0de49fe316921574c7d7f60e12f21",
     "render-worker.js": "613249999ea4156beefa035a9864bf1c0675d1c5cbb3ce30d3e2f390f8b36bba",
-    "browser-tracker.js": "13d4291262378149e822df406c9c6e132ff3cd3a08d7a82a234412ee4f6270d0",
-    "browser-tracking-worker.js": "e7e393d124e74238645e30b6e52d323d81180a2f8a491c100b82a9b318ca5448",
-    "appearance-storage.js": "f8b1d0f804a5e2be5f7af7106654935d5fa9933f91adc1c420c54e096373b670"
+    "browser-tracker.js": "7097b0b6d3683fe905eb9fdf7c4119e226b3a6fc0c352b7bd5c79133fb81e32d",
+    "browser-tracking-worker.js": "997aa4f91c5252a1a9b440664ea2c88c8cfdbd19fd35435f3ee8fc4c39e590eb",
+    "appearance-storage.js": "059aa95f3b7214898104f76d1213af17ee15419d356ee61ff79d823bc7cbafd0",
+    "pose-filter.js": "7b703a41702d79b01b99258ef1c412ad17f7684a9e16d2c5d6dd5bde581fffdd"
   },
   "guestAppearance": "cookie-v1-180-days",
-  "guestModel": "indexeddb"
+  "guestModel": "indexeddb",
+  "poseModels": [
+    "full",
+    "heavy"
+  ]
 }

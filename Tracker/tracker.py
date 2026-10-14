@@ -15,6 +15,8 @@ from hand_assignment import anatomical_hand
 MODELS = {
     'face': 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
     'pose': 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+    'pose_full': 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
+    'pose_heavy': 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task',
     'hand': 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
 }
 
@@ -42,8 +44,9 @@ def main():
     parser.add_argument('--frames', type=int, default=0)
     parser.add_argument('--hands', action='store_true')
     parser.add_argument('--hand-stride', type=int, choices=(1, 2, 3), default=1)
+    parser.add_argument('--pose-quality',choices=('full','heavy'),default='full')
     args = parser.parse_args()
-    face_path, pose_path = model('face'), model('pose')
+    face_path, pose_path = model('face'), model('pose_'+args.pose_quality)
     hand_path = model('hand') if args.hands or args.download_only else None
     if args.download_only:
         return
@@ -54,7 +57,8 @@ def main():
         output_face_blendshapes=True, output_facial_transformation_matrixes=True)
     pose_options = vision.PoseLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_buffer=Path(pose_path).read_bytes()),
-        running_mode=vision.RunningMode.VIDEO, num_poses=1)
+        running_mode=vision.RunningMode.VIDEO, num_poses=1,
+        min_pose_detection_confidence=.6,min_pose_presence_confidence=.6,min_tracking_confidence=.6)
     camera = cv2.VideoCapture(args.camera)
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -94,7 +98,7 @@ def main():
                     packet['points'] = [dict(x=float(v.x), y=float(v.y), z=float(v.z),
                                              confidence=float(v.visibility) if 0 <= normalized_pose[j].x <= 1 and 0 <= normalized_pose[j].y <= 1 else 0.0)
                                         for j, v in enumerate(p.pose_world_landmarks[0])]
-                    packet['imagePose'] = [dict(x=float(v.x), y=float(v.y), z=float(v.z), confidence=float(v.visibility)) for v in p.pose_landmarks[0]]
+                    packet['imagePose'] = [dict(x=float(v.x), y=float(v.y), z=float(v.z), confidence=float(v.visibility) if 0 <= v.x <= 1 and 0 <= v.y <= 1 else 0.0) for v in p.pose_landmarks[0]]
                 if hand_result:
                     for i, points in enumerate(hand_result.hand_world_landmarks):
                         category = hand_result.handedness[i][0]

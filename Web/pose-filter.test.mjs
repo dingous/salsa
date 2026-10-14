@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {PoseFilter} from './pose-filter.js';
+const filter=new PoseFilter(),p=x=>[{x,y:0,z:0,confidence:1}];
+filter.update(p(0),1/30);let values=[];
+for(let i=0;i<100;i++)values.push(filter.update(p(i%2?.01:-.01),1/30)[0].x);
+assert.ok(Math.max(...values.slice(20))-Math.min(...values.slice(20))<.005,'Rest jitter must be reduced');
+const before=filter.points[0].x,after=filter.update(p(100),1/30)[0].x;
+assert.ok(after-before<=.100001,'Impossible spikes must be rate limited');
+for(let i=0;i<120;i++)filter.update(p(.5),1/30);
+assert.ok(Math.abs(filter.points[0].x-.5)<.002,'Intentional movement must converge');
+assert.equal(filter.update([{x:NaN,y:0,z:0,confidence:1}],1/30)[0].confidence,0);
+filter.reset();assert.equal(filter.points.length,0);
+console.log('Pose filter jitter, outlier, motion convergence and invalid-data checks passed');

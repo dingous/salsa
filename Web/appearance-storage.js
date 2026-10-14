@@ -4,7 +4,7 @@ export function sanitizeAppearance(value){
   const data=value&&typeof value==='object'?value:{};
   const presentation=data.presentation==='corporate'?'corporate':'professional';
   const colors={};for(const key of ['skin','hair','eyes','outfit'])if(/^#[0-9a-f]{6}$/i.test(data.colors?.[key]||''))colors[key]=data.colors[key].toUpperCase();
-  return {version:1,presentation,background:['studio','corporate','green','dark'].includes(data.background)?data.background:presentation==='corporate'?'corporate':'studio',framing:data.framing==='full'?'full':'bust',mirror:typeof data.mirror==='boolean'?data.mirror:true,colors};
+  return {version:1,presentation,background:['studio','corporate','green','dark'].includes(data.background)?data.background:presentation==='corporate'?'corporate':'studio',framing:data.framing==='full'?'full':'bust',mirror:typeof data.mirror==='boolean'?data.mirror:true,poseQuality:data.poseQuality==='heavy'?'heavy':'full',colors};
 }
 export function readAppearance(cookie=document.cookie){
   try{const entry=cookie.split(';').map(s=>s.trim()).find(s=>s.startsWith(COOKIE_NAME+'='));if(!entry)return null;const value=JSON.parse(decodeURIComponent(entry.slice(COOKIE_NAME.length+1)));return value.version===1?sanitizeAppearance(value):null;}catch{return null;}

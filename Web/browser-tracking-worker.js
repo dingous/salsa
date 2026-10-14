@@ -9,7 +9,8 @@ self.onmessage=async({data})=>{
       const files=await FilesetResolver.forVisionTasks(new URL('vendor/mediapipe/package/wasm/',self.location.href).href);
       const options=name=>({baseOptions:{modelAssetPath:new URL('assets/'+name+'.task',self.location.href).href,delegate:'CPU'},runningMode:'VIDEO'});
       face=await FaceLandmarker.createFromOptions(files,{...options('face'),numFaces:1,outputFaceBlendshapes:true,outputFacialTransformationMatrixes:true});
-      pose=await PoseLandmarker.createFromOptions(files,{...options('pose'),numPoses:1});
+      const quality=data.poseQuality==='heavy'?'heavy':'full';
+      pose=await PoseLandmarker.createFromOptions(files,{...options('pose_'+quality),numPoses:1,minPoseDetectionConfidence:.6,minPosePresenceConfidence:.6,minTrackingConfidence:.6});
       hands=await HandLandmarker.createFromOptions(files,{...options('hand'),numHands:2});
       postMessage({type:'ready'});
     }else if(data.type==='frame') {
@@ -19,7 +20,7 @@ self.onmessage=async({data})=>{
         frame.shapes=(f.faceBlendshapes?.[0]?.categories||[]).map(s=>({name:s.categoryName,value:s.score}));
         const m=f.facialTransformationMatrixes?.[0]?.data;
         if(m)frame.rotation=[m[0],m[4],m[8],m[1],m[5],m[9],m[2],m[6],m[10]];
-        frame.imagePose=imagePose.map(p=>point(p,p.visibility??0));
+        frame.imagePose=imagePose.map(p=>point(p,p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1?p.visibility??0:0));
         frame.points=(p.worldLandmarks?.[0]||[]).map((p,i)=>point(p,imagePose[i]?.x>=0&&imagePose[i]?.x<=1&&imagePose[i]?.y>=0&&imagePose[i]?.y<=1?p.visibility??0:0));
         for(let i=0;i<(h.landmarks?.length||0);i++) {
           const wrist=h.landmarks[i][0],l=imagePose[15],r=imagePose[16],category=h.handedness[i][0];

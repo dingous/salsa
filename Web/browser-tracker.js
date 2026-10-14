@@ -1,6 +1,6 @@
 export class BrowserTracker {
   constructor(onFrame,onError,onStatus=()=>{}){this.onFrame=onFrame;this.onError=onError;this.onStatus=onStatus;this.generation=0;this.timer=null;}
-  async start(index=0) {
+  async start(index=0,poseQuality='full') {
     this.stop();const generation=this.generation;
     if(!navigator.mediaDevices?.getUserMedia)throw new Error('Use Chrome ou Edge em HTTPS para acessar a webcam.');
     this.onStatus('Permita o acesso à webcam no navegador.');
@@ -18,7 +18,7 @@ export class BrowserTracker {
       const timeout=setTimeout(()=>reject(new Error('O rastreador demorou para carregar. Tente novamente.')),60000);
       this.worker.onerror=event=>{clearTimeout(timeout);reject(new Error(event.message||'Falha no rastreador.'));};
       this.worker.onmessage=({data})=>{if(data.type==='ready'){clearTimeout(timeout);resolve();}else if(data.type==='error'){clearTimeout(timeout);reject(new Error(data.error));}};
-      this.worker.postMessage({type:'init'});
+      this.worker.postMessage({type:'init',poseQuality});
     });
     if(generation!==this.generation)return;
     this.worker.onmessage=({data})=>{

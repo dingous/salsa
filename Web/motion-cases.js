@@ -15,7 +15,7 @@ export function poseFrame(action='neutral') {
 
 export function runMotionChecks(rig,THREE) {
   const results=[],check=(name,condition)=>{results.push({name,pass:!!condition});if(!condition)throw new Error(name);};
-  const settle=frame=>{for(let i=0;i<150;i++)rig.update(frame,1/30);rig.vrm.scene.updateMatrixWorld(true);};
+  const settle=frame=>{for(let i=0;i<150;i++)rig.update(frame?{...frame,points:frame.points.map(p=>({...p}))}:null,1/30);rig.vrm.scene.updateMatrixWorld(true);};
   const direction=(a,b)=>rig.bones.get(b).getWorldPosition(new THREE.Vector3()).sub(rig.bones.get(a).getWorldPosition(new THREE.Vector3())).normalize();
   for(const mirror of [false,true]) {
     rig.setMirror(mirror);settle(poseFrame());
@@ -34,6 +34,9 @@ export function runMotionChecks(rig,THREE) {
     check(label+': braço avança em direção à câmera',direction(active+'UpperArm',active+'LowerArm').z>.8);
     settle(poseFrame('left-leg'));
     check(label+': perna correta avança',direction(active+'UpperLeg',active+'LowerLeg').z>.8);
+    const extreme=poseFrame();extreme.points[15]={x:.25,y:-.9,z:0,confidence:1};extreme.points[27]={x:.15,y:.01,z:0,confidence:1};settle(extreme);
+    check(label+': cotovelo respeita flexão máxima',direction(active+'UpperArm',active+'LowerArm').angleTo(direction(active+'LowerArm',active+'Hand'))<2.65);
+    check(label+': joelho respeita flexão máxima',direction(active+'UpperLeg',active+'LowerLeg').angleTo(direction(active+'LowerLeg',active+'Foot'))<2.82);
     settle(poseFrame('neutral'));
     const forward=new THREE.Vector3(0,0,1).applyQuaternion(rig.bones.get('spine').getWorldQuaternion(new THREE.Quaternion()));
     check(label+': tronco neutro não gira 180 graus',forward.z>.9);

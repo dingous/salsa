@@ -125,7 +125,8 @@ class Bridge:
             except OSError:
                 break
 
-    def start_tracking(self, index, client='internal'):
+    def start_tracking(self, index, client='internal', pose_quality='full'):
+        if pose_quality not in ('full','heavy'):raise ValueError('Escolha a precisão Full ou Heavy.')
         if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index <= 9:
             raise ValueError('Escolha uma webcam de 0 a 9.')
         with self.tracking_control, self.lock:
@@ -137,7 +138,7 @@ class Bridge:
             self.packet = None
             self.received = 0
             args = [sys.executable, '-u', str(PROJECT / 'Tracker/tracker.py'), '--port', str(self.port),
-                    '--camera', str(index), '--no-preview', '--hands']
+                    '--camera', str(index), '--no-preview', '--hands', '--pose-quality',pose_quality]
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, encoding='utf-8', errors='replace',
                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
@@ -385,7 +386,7 @@ def handler_for(bridge, port):
                     if not isinstance(body, dict):
                         raise ValueError('A operação precisa de um objeto JSON.')
                     if path == '/api/tracking/start':
-                        bridge.start_tracking(body.get('camera', 0), client)
+                        bridge.start_tracking(body.get('camera', 0), client, body.get('poseQuality','full'))
                     elif path == '/api/tracking/stop':
                         bridge.stop_tracking(client)
                     elif path == '/api/camera/start':

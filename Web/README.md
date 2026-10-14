@@ -35,3 +35,7 @@ Testes: `node Web/rig.test.mjs`, `node Web/tracking-utils.test.mjs` e `Tracker/.
 ## Personalização sem login
 
 O cookie `avatar_appearance_v1` guarda cores, apresentação, cenário, enquadramento e espelhamento por 180 dias (SameSite=Lax e Secure em HTTPS), restrito ao caminho do Avatar no site. Preferências antigas do perfil de apresentação são migradas. Arquivos VRM importados ficam no IndexedDB deste navegador, depois de carregados com sucesso, sem upload ao servidor. Ao escolher o modelo de demonstração, o avatar importado salvo é removido. Limpar dados do navegador remove a personalização; outros navegadores e dispositivos não compartilham essas configurações.
+
+## Pose avançada
+
+Full é o modelo padrão de pose no navegador e no rastreador Python (incluindo Unity). Heavy é selecionável na web ou com `--pose-quality heavy` no Python. Ambos usam os modelos oficiais MediaPipe float16 v1. Troque a precisão com a webcam parada; a escolha fica no cookie. Heavy exige mais processamento. O avatar web aplica filtragem One Euro por landmark, rejeição de saltos impossíveis, limites de flexão dos cotovelos (150°) e joelhos (160°), orientação do quadril e retorno suave ao repouso. Partes fora do enquadramento não conduzem o deslocamento do corpo. A filtragem e os limites novos são do rig web; o Unity recebe o modelo Full por meio do rastreador Python e mantém seu retargeting nativo.

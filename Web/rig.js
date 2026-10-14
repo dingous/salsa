@@ -1,10 +1,12 @@
 import * as THREE from './vendor/three/package/build/three.module.js';
+import {PoseFilter} from './pose-filter.js';
 
 export class AvatarRig {
   constructor(vrm) {
     this.vrm=vrm;this.bones=new Map();this.rest=new Map();this.world=new Map();this.directions=new Map();this.palms=new Map();this.origin=vrm.scene.position.clone();this.neutral=new THREE.Quaternion();this.headRaw=new THREE.Quaternion();this.center=null;
     this.filtered=new Map();this.lastSeen=new Map();this.clock=0;this.dt=1/30;
     this.mirror=true;
+    this.poseFilter=new PoseFilter();this.poseFrame=null;this.poseElapsed=0;
     vrm.scene.updateMatrixWorld(true);
     for(const key of Object.keys(vrm.humanoid.humanBones)) {
       const bone=vrm.humanoid.getNormalizedBoneNode(key);if(!bone)continue;
@@ -23,7 +25,7 @@ export class AvatarRig {
     }
   }
   point(p){return new THREE.Vector3(this.mirror?-p.x:p.x,-p.y,-p.z);}
-  setMirror(value){this.mirror=!!value;this.filtered.clear();this.lastSeen.clear();this.neutral.identity();this.center=null;}
+  setMirror(value){this.mirror=!!value;this.filtered.clear();this.lastSeen.clear();this.neutral.identity();this.center=null;this.poseFilter.reset();this.poseFrame=null;}
   valid(p,...indices){return p&&indices.every(i=>p[i]&&p[i].confidence>=.55);}
   basis(up,across,side) {
     if(up.lengthSq()<1e-8 || across.lengthSq()<1e-8)return new THREE.Quaternion();
@@ -53,9 +55,22 @@ export class AvatarRig {
     this.filtered.set(key,filtered);this.aim(key,filtered,t);
   }
   calibrate(frame){this.neutral.copy(this.headRaw);const p=frame?.imagePose;if(this.valid(p,23,24))this.center={x:(p[23].x+p[24].x)/2,y:(p[23].y+p[24].y)/2};}
+  bend(points,a,b,c,max){
+    if(!this.valid(points,a,b,c))return points;
+    const upper=this.point(points[b]).sub(this.point(points[a])).normalize(),lower=this.point(points[c]).sub(this.point(points[b]));
+    const length=lower.length();if(length<1e-6)return points;lower.normalize();
+    const angle=upper.angleTo(lower);if(angle<=max)return points;
+    let axis=upper.clone().cross(lower);if(axis.lengthSq()<1e-6)axis=upper.clone().cross(new THREE.Vector3(0,0,1));if(axis.lengthSq()<1e-6)axis.set(1,0,0);
+    lower.copy(upper).applyAxisAngle(axis.normalize(),max).multiplyScalar(length).add(this.point(points[b]));
+    const corrected=points.slice();corrected[c]={x:(this.mirror?-1:1)*lower.x,y:-lower.y,z:-lower.z,confidence:points[c].confidence};return corrected;
+  }
   update(frame,dt,demo=false,time=0) {
     this.dt=Math.min(Math.max(dt,0),.1);this.clock+=this.dt;
-    const t=1-Math.exp(-10*this.dt),p=demo?null:frame?.pose?frame.points:null;
+    this.poseElapsed+=this.dt;
+    const raw=demo?null:frame?.pose?frame.points:null;
+    if(raw!==this.poseFrame){this.poseFilter.update(raw,this.poseElapsed);this.poseFrame=raw;this.poseElapsed=0;}
+    const t=1-Math.exp(-10*this.dt);let p=raw?this.poseFilter.points:null;
+    for(const [a,b,c,max] of [[11,13,15,2.62],[12,14,16,2.62],[23,25,27,2.79],[24,26,28,2.79]])p=this.bend(p,a,b,c,max);
     const weights={};for(const s of frame?.face?frame.shapes||[]:[])weights[s.name]=s.value;
     const E=name=>{
       if(demo)return name.startsWith('eyeBlink')?(time%4.4>4.1?Math.sin((time%4.4-4.1)/.3*Math.PI):0):name.startsWith('mouthSmile')?.55:name==='jawOpen'?Math.max(0,Math.sin(time*3))*.25:0;
@@ -74,10 +89,13 @@ export class AvatarRig {
     }
     if(this.vrm.lookAt){this.vrm.lookAt.yaw=THREE.MathUtils.lerp(this.vrm.lookAt.yaw,(E('eyeLookOutLeft')+E('eyeLookInRight')-E('eyeLookInLeft')-E('eyeLookOutRight'))*12,t);this.vrm.lookAt.pitch=THREE.MathUtils.lerp(this.vrm.lookAt.pitch,(E('eyeLookUpLeft')+E('eyeLookUpRight')-E('eyeLookDownLeft')-E('eyeLookDownRight'))*8,t);}
     if(this.valid(p,11,12,23,24)) {
+      const across=this.point(p[this.mirror?24:23]).sub(this.point(p[this.mirror?23:24]));
+      const hipForward=across.clone().cross(new THREE.Vector3(0,1,0));
+      if(hipForward.lengthSq()>1e-6)this.rotate('hips',new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(hipForward,new THREE.Vector3(),new THREE.Vector3(0,1,0))),t,true);
       const up=this.point(p[11]).add(this.point(p[12])).sub(this.point(p[23])).sub(this.point(p[24]));
       const right=this.point(p[this.mirror?12:11]).sub(this.point(p[this.mirror?11:12])).normalize();const forward=right.clone().cross(up).normalize();
       if(forward.lengthSq()>1e-8){const y=up.normalize(),x=y.clone().cross(forward).normalize();this.rotate('spine',new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,forward)),t,true);}
-    }else if(this.rest.has('spine'))this.rotate('spine',this.rest.get('spine'),t);
+    }else {if(this.rest.has('spine'))this.rotate('spine',this.rest.get('spine'),t);if(this.rest.has('hips'))this.rotate('hips',this.rest.get('hips'),t);}
     for(let side=0;side<2;side++) {
       const prefix=side===0?'left':'right',source=this.mirror?1-side:side,s=source===0?11:12,e=source===0?13:14,w=source===0?15:16,h=source===0?23:24,k=source===0?25:26,a=source===0?27:28,toe=source===0?31:32;
       // Clavicles stay attached to the chest; arm targets rotate joints only.

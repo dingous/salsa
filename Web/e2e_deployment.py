@@ -34,7 +34,7 @@ for name,digest in manifest['files'].items():
     assert hashlib.sha256(body).hexdigest()==digest,name+' hash mismatch'
     if name.endswith('.js'):assert 'javascript' in headers['Content-Type'],name
     checks.append(name)
-for name,mime in [('vendor/mediapipe/package/vision_bundle.mjs','javascript'),('vendor/mediapipe/package/wasm/vision_wasm_internal.wasm','application/wasm'),('assets/face.task','application/octet-stream'),('assets/hand.task','application/octet-stream'),('assets/pose.task','application/octet-stream'),('assets/Seed-san.vrm','application/octet-stream')]:
+for name,mime in [('vendor/mediapipe/package/vision_bundle.mjs','javascript'),('vendor/mediapipe/package/wasm/vision_wasm_internal.wasm','application/wasm'),('assets/face.task','application/octet-stream'),('assets/hand.task','application/octet-stream'),('assets/pose.task','application/octet-stream'),('assets/pose_full.task','application/octet-stream'),('assets/pose_heavy.task','application/octet-stream'),('assets/Seed-san.vrm','application/octet-stream')]:
     code,headers,body,url=get(name,16)
     assert code==200 and mime in headers['Content-Type'],(name,headers['Content-Type'])
     if name.endswith('.wasm'):assert body[:4]==b'\0asm'

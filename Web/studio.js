@@ -2,13 +2,13 @@ import {BrowserTracker} from './browser-tracker.js';
 import {readAppearance,writeAppearance,sanitizeAppearance,loadGuestModel,saveGuestModel,clearGuestModel} from './appearance-storage.js';
 const hosted=!['127.0.0.1','localhost'].includes(location.hostname)||new URLSearchParams(location.search).get('mode')==='browser';
 const $=id=>document.getElementById(id),status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
-const browserTracker=new BrowserTracker(frame=>{worker?.postMessage({type:'trackingFrame',frame});},error=>{tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=false;status(error,true);},text=>status(text));
+const browserTracker=new BrowserTracker(frame=>{worker?.postMessage({type:'trackingFrame',frame});},error=>{tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=$('poseQuality').disabled=false;status(error,true);},text=>status(text));
 const client=crypto.randomUUID();
 let token='',tracking=false,virtual=false,cameraSession=null,detected={face:false,pose:false,hands:0},worker,ready=false,epoch=0,pending=false,latest=null,reconnecting=null,bridgeWasOffline=false;
 let appearance=readAppearance(),pendingModel=null;
 if(!appearance){let previous;try{previous=localStorage.getItem('avatarPresentation');}catch{}appearance=sanitizeAppearance({presentation:previous});}
 function savePreferences(){
-  appearance=sanitizeAppearance({...appearance,presentation:$('presentation').value,background:$('background').value,framing:$('framing').value,mirror:$('mirror').checked});
+  appearance=sanitizeAppearance({...appearance,presentation:$('presentation').value,background:$('background').value,framing:$('framing').value,mirror:$('mirror').checked,poseQuality:$('poseQuality').value});
   $('preferencesState').textContent=writeAppearance(appearance)?'Aparência salva neste navegador por 180 dias.':'Cookie bloqueado: preferências válidas somente nesta sessão.';
 }
 $('virtual').disabled=true;
@@ -41,6 +41,7 @@ function presentation(value,save=true) {
   send('presentation',value);send('background',$('background').value);send('framing','bust');
   if(save)savePreferences();
 }
+$('poseQuality').onchange=()=>savePreferences();
 $('presentation').onchange=()=>presentation($('presentation').value);
 $('mirror').onchange=()=>{send('mirror',$('mirror').checked);savePreferences();};
 for(const key of ['skin','hair','eyes','outfit'])$(key+'Color').onchange=()=>{const color=$(key+'Color').value;if(color)appearance.colors[key]=color;else delete appearance.colors[key];send('appearance',appearance.colors);savePreferences();};
@@ -51,7 +52,7 @@ function applyState(result) {
   tracking=result.tracking&&!foreignTracker;virtual=result.virtualCamera&&!foreignCamera;cameraSession=virtual?result.cameraSession:null;
   worker?.postMessage({type:'virtual',value:virtual,session:cameraSession});
   $('track').textContent=foreignTracker?'Webcam em uso em outra aba':tracking?'Parar rastreamento':'Iniciar rastreamento';
-  $('track').disabled=pending||!!foreignTracker;$('camera').disabled=!!result.tracking||pending;
+  $('track').disabled=pending||!!foreignTracker;$('camera').disabled=$('poseQuality').disabled=!!result.tracking||pending;
   $('virtual').textContent=foreignCamera?'Saída em uso em outra aba':virtual?'Desativar câmera virtual':'Ativar câmera virtual';
   $('virtual').disabled=pending||!!foreignCamera||!ready||result.cameraState==='stopping';
   $('virtualState').textContent=foreignCamera?'Saída ativa em outra aba':virtual?(result.streaming?'OBS Virtual Camera transmitindo':'Aguardando frames do avatar'):'Câmera virtual desligada';
@@ -61,6 +62,7 @@ function applyState(result) {
 }
 async function operation(path,body,message) {
   if(pending)return;pending=true;epoch++;$('track').disabled=$('virtual').disabled=true;
+  if(path.startsWith('tracking/'))$('camera').disabled=$('poseQuality').disabled=true;
   if(path==='camera/stop'){virtual=false;worker?.postMessage({type:'virtual',value:false,session:null});}
   try {
     const result=await api(path,body);applyState(result);
@@ -73,12 +75,12 @@ $('defaultModel').onclick=()=>{pendingModel={builtin:true};status('Carregando Se
 $('framing').onchange=()=>{send('framing',$('framing').value);savePreferences();};$('background').onchange=()=>{send('background',$('background').value);savePreferences();};$('demo').onchange=()=>send('demo',$('demo').checked);
 $('calibrate').onclick=()=>{if(!tracking){status('Inicie o rastreamento antes de calibrar.');return;}send('calibrate');status('Posição neutra calibrada.');};
 $('track').onclick=async()=>{
-  if(!hosted)return operation('tracking/'+(tracking?'stop':'start'),{camera:Number($('camera').value)},tracking?'Rastreamento encerrado. A webcam foi liberada.':'Abrindo a webcam física para rastrear rosto, mãos e corpo…');
-  if(tracking){browserTracker.stop();tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=false;$('trackingState').textContent='Webcam desligada';status('Rastreamento encerrado.');return;}
-  $('track').disabled=true;status('Abrindo a webcam e preparando o rastreamento local no navegador…');
-  try{await browserTracker.start(Number($('camera').value));tracking=true;$('track').textContent='Parar rastreamento';$('camera').disabled=true;$('demo').checked=false;send('demo',false);status('Rastreamento ativo. Os frames da webcam são processados no seu navegador.');}
+  if(!hosted)return operation('tracking/'+(tracking?'stop':'start'),{camera:Number($('camera').value),poseQuality:$('poseQuality').value},tracking?'Rastreamento encerrado. A webcam foi liberada.':'Abrindo a webcam física para rastrear rosto, mãos e corpo…');
+  if(tracking){browserTracker.stop();tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=$('poseQuality').disabled=false;$('trackingState').textContent='Webcam desligada';status('Rastreamento encerrado.');return;}
+  $('track').disabled=$('poseQuality').disabled=true;status('Abrindo a webcam e preparando o rastreamento local no navegador…');
+  try{await browserTracker.start(Number($('camera').value),$('poseQuality').value);tracking=true;$('track').textContent='Parar rastreamento';$('camera').disabled=$('poseQuality').disabled=true;$('demo').checked=false;send('demo',false);status('Rastreamento ativo. Os frames da webcam são processados no seu navegador.');}
   catch(error){browserTracker.stop();status(error.name==='NotAllowedError'?'Permita o acesso à webcam para iniciar o rastreamento.':error.message,true);}
-  finally{$('track').disabled=false;}
+  finally{$('track').disabled=false;$('poseQuality').disabled=tracking;}
 };
 $('virtual').onclick=()=>operation('camera/'+(virtual?'stop':'start'),{},virtual?'Câmera virtual desligada.':'Câmera virtual pronta. No Teams, escolha OBS Virtual Camera.');
 $('clean').onclick=()=>document.body.classList.add('clean');window.addEventListener('keydown',event=>{if(event.key==='Escape')document.body.classList.remove('clean');});$('avatar').addEventListener('dblclick',()=>document.body.classList.remove('clean'));
@@ -109,7 +111,7 @@ async function initialize() {
     };
     const canvas=$('avatar').transferControlToOffscreen();worker.postMessage({type:'init',token,client,canvas,hosted,source:savedSource},savedSource?[canvas,savedSource]:[canvas]);
     const restored=appearance;presentation(restored.presentation,false);
-    $('background').value=restored.background;$('framing').value=restored.framing;$('mirror').checked=restored.mirror;
+    $('background').value=restored.background;$('framing').value=restored.framing;$('mirror').checked=restored.mirror;$('poseQuality').value=restored.poseQuality;
     for(const key of ['skin','hair','eyes','outfit'])$(key+'Color').value=restored.colors[key]||'';
     send('background',restored.background);send('framing',restored.framing);send('mirror',restored.mirror);send('appearance',restored.colors);savePreferences();if(!hosted)pollStatus();
   }catch(error){status('Não foi possível iniciar o studio: '+error.message,true);}

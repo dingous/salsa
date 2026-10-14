@@ -11,4 +11,4 @@ worker.onmessage=async({data})=>{
     document.getElementById('result').textContent=JSON.stringify(data.frame,null,2);worker.terminate();
   }else if(data.type==='error'){clearTimeout(timer);status.textContent='FAIL · '+data.error;worker.terminate();}
 };
-worker.postMessage({type:'init'});
+worker.postMessage({type:'init',poseQuality:new URLSearchParams(location.search).get('quality')==='heavy'?'heavy':'full'});

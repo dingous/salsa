@@ -79,6 +79,12 @@ class BridgeTests(unittest.TestCase):
         self.bridge.received -= 1
         self.assertFalse(self.bridge.tracking_frame()['face'])
 
+    def test_invalid_pose_quality_is_rejected(self):
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.request('/api/tracking/start',b'{"camera":0,"poseQuality":"unknown"}',self.auth())
+        self.assertEqual(caught.exception.code,400)
+        self.assertIsNone(self.bridge.tracker)
+
     def test_virtual_frame_color_dimensions_and_stop(self):
         import cv2
         import numpy as np
