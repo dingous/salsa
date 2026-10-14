@@ -32,6 +32,15 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--rig-parity")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    yield return VerifyRig(ui,(mode==0?"Cartoon":"Corporate")+" Webcam");
+                    Call(ui,"ShowPartner");Check(!ui.tracking.Connected&&!ui.tracking.PoseDetected&&!ui.tracking.HandsDetected,"Partner clears prior webcam input model "+mode);
+                    yield return VerifyRig(ui,(mode==0?"Cartoon":"Corporate")+" Partner");Call(ui,"ShowPage",3);
+                }
+                Debug.Log("CORPORATE_RIG_PARITY_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--partner-only")>=0){
                 foreach(int mode in new[]{0,1}){
                     Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
@@ -360,8 +369,9 @@ namespace WebcamAvatar
                 packet.shapes=new[]{new Shape{name="jawOpen",value=.9f},new Shape{name="eyeBlinkLeft",value=.9f}};
                 yield return Send(udp,packet,ui.tracking.port,1);
                 var expressions=ui.Vrm.Instance.Runtime.Expression;
-                var mouth=label=="Cartoon"?ExpressionKey.Aa:ExpressionKey.CreateCustom("jawOpen");
-                var eye=label=="Cartoon"?ExpressionKey.CreateFromPreset(mirror?ExpressionPreset.blinkRight:ExpressionPreset.blinkLeft):ExpressionKey.CreateCustom(mirror?"eyeBlinkRight":"eyeBlinkLeft");
+                bool customFace=false;foreach(var key in expressions.ExpressionKeys)if(key.Preset==ExpressionPreset.custom&&key.Name=="jawOpen")customFace=true;
+                var mouth=customFace?ExpressionKey.CreateCustom("jawOpen"):ExpressionKey.Aa;
+                var eye=customFace?ExpressionKey.CreateCustom(mirror?"eyeBlinkRight":"eyeBlinkLeft"):ExpressionKey.CreateFromPreset(mirror?ExpressionPreset.blinkRight:ExpressionPreset.blinkLeft);
                 Check(expressions.GetWeight(mouth)>.6f,label+" jaw expression mirror "+mirror);
                 Check(expressions.GetWeight(eye)>.6f,label+" unilateral blink mirror "+mirror);
                 var neutralHead=head.rotation;float yaw=.3f;

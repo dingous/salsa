@@ -224,7 +224,7 @@ namespace WebcamAvatar
             Dropdown(new[]{"Modo: Webcam","Modo: Parceiro Dingous"},parent,24,504,322,34,i=>{if(i==1)ShowPartner();else{partnerMode=false;StopPartner();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);SetStatus("Modo Webcam. Inicie o rastreamento em Transmissão.");}});
         }
         void ShowPartner(){
-            StopLaboratory();if(trackerJob!=null)ToggleTracking();partnerMode=true;
+            StopLaboratory();if(trackerJob!=null)ToggleTracking();tracking.ClearSource();partnerMode=true;
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Parceiro Dingous",responsive.Content,116,256,370,558,panel).gameObject;
             Label("PARCEIRO DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);

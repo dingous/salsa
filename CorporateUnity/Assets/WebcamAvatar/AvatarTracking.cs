@@ -64,6 +64,9 @@ namespace WebcamAvatar
             if(mirror){if(name.EndsWith("Left"))name=name.Substring(0,name.Length-4)+"Right";else if(name.EndsWith("Right"))name=name.Substring(0,name.Length-5)+"Left";}
             return smoothed.TryGetValue(name,out var value)?value:0;
         }
+        public void ClearSource(){
+            if(socket!=null)try{for(int i=0;i<64&&socket.Available>0;i++){IPEndPoint endpoint=null;socket.Receive(ref endpoint);}}catch(SocketException){}
+            frame=null;received=-10;poseFilter.Reset();leftHandFilter.Reset();rightHandFilter.Reset();expressions.Clear();hasBodyReference=false;neutral=Quaternion.identity;HeadRotation=Quaternion.identity;}
         public void Calibrate() {if(FaceDetected)neutral=rawHead;if(BodyCenter(out var center)){bodyReference=center;hasBodyReference=true;}}
         [Tooltip("Opcional: avatar importado com rig Humanoid e blendshapes MediaPipe/ARKit.")]
         public Animator humanoid;
