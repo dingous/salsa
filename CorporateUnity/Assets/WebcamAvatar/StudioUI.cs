@@ -42,6 +42,7 @@ namespace WebcamAvatar
         Toggle glassesToggle, beardToggle, animationToggle;
         int cameraIndex;
         string poseQuality="full";
+        bool framingPreview;
         CorporateOffice office;
         Material backdrop;
         GameObject advancedPanel;
@@ -306,7 +307,8 @@ namespace WebcamAvatar
             Toggle("Espelhar movimentos",parent,24,359,196,true,v=>tracking.mirror=v);
             environmentDropdown=Dropdown(new[]{"Escritório","Estúdio","Chroma"},parent,221,359,125,32,SetEnvironment);
             Slider("Intensidade das expressões",parent,24,403,322,.5f,2,tracking.expressionGain,v=>tracking.expressionGain=v);
-            Button("Como usar nas chamadas",parent,24,480,322,38,ShowCameraHelp);
+            Toggle("Ver enquadramento da webcam",parent,24,451,322,false,SetTrackingPreview);
+            Button("Como usar nas chamadas",parent,24,492,322,38,ShowCameraHelp);
             cameraStatus=Label("Saída: 1280 × 720 · 30 fps",parent,24,528,322,20,11,muted);
         }
         void BuildPreview(Transform root)
@@ -499,10 +501,17 @@ namespace WebcamAvatar
             }catch(Exception e){SetStatus("Não foi possível carregar: "+e.Message,true);}
         }
         void SetButtonLabel(Button button,string value)=>button.GetComponentInChildren<Text>().text=value;
+        void SetTrackingPreview(bool value)
+        {
+            if(framingPreview==value)return;
+            framingPreview=value;
+            if(trackerJob!=null){ToggleTracking();ToggleTracking();}
+        }
+
         void ToggleTracking()
         {
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
-            try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);trackerJob=new LocalJob("tracker.py","--camera",cameraIndex.ToString(),"--no-preview","--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality);SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
+            try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
             catch(Exception e){SetStatus(e.Message,true);}
         }
         void ToggleCamera()

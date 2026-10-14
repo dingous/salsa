@@ -114,6 +114,17 @@ def main():
                 if not args.no_preview:
                     preview = cv2.flip(frame, 1)
                     cv2.putText(preview, 'ROSTO: %s  POSE: %s | Q: sair' % (packet['face'], packet['pose']), (10, 25), cv2.FONT_HERSHEY_SIMPLEX, .55, (80, 255, 100), 1)
+                    height, width = preview.shape[:2]
+                    cv2.rectangle(preview, (int(width * .08), int(height * .08)), (int(width * .92), int(height * .92)), (180, 180, 180), 1)
+                    cv2.putText(preview, 'Enquadre ombros, cotovelos e maos', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, .55, (255, 255, 255), 1)
+                    if p.pose_landmarks:
+                        for joint in (11, 12, 13, 14, 15, 16):
+                            v = p.pose_landmarks[0][joint]
+                            valid = 0 <= v.x <= 1 and 0 <= v.y <= 1 and v.visibility >= .5
+                            x = max(0, min(width - 1, round((1 - v.x) * (width - 1))))
+                            y = max(0, min(height - 1, round(v.y * (height - 1))))
+                            color = (80, 255, 100) if valid else (50, 50, 255)
+                            cv2.circle(preview, (x, y), 7, color, 2)
                     cv2.imshow('Webcam Avatar - MediaPipe', preview)
                     if cv2.waitKey(1) & 0xff in (ord('q'), 27):
                         break

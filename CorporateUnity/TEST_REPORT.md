@@ -182,3 +182,12 @@ Cartoon: both near-head observations passed (avatar head distances 0.160 / 0.095
 Corporate: both finger curl excursions passed (50.2 / 42.5 degrees tracked). One near-head observation passed; the other tracked wrist-to-nose minimum was 0.240 m vs a 0.23 m threshold, so avatar head proximity was not accepted for that side. Arm height excursions were 0.118 / 0.121 m, below 0.25 m.
 
 The runner uses StudioUI's default Webcam 0. User was asked to confirm whether this is the camera used for their gestures before another run or tracker changes. Missing amplitude does not by itself establish a rig bug; camera source, framing and pose detection confidence remain unresolved. Model-specific logs/results contain the repeated run; first-run results were preserved locally as Validation/cartoon-camera-first-result.json and Validation/corporate-camera-first-result.json. No raw webcam images saved.
+
+
+## Webcam 0 diagnostic and framing preview — 2026-10-14
+
+User confirmed Webcam 0. The latest Corporate real-camera run remained FAIL: 1614 unique tracking packets, with 1576 / 1123 wrist estimates outside normalized image bounds and only 9 / 474 hand observations. These are detector estimates, not proof of actual physical framing. OBS output delivered 1801 frames at 720p / 30.02 FPS. No raw camera images were stored.
+
+Added optional Transmissão → Ver enquadramento da webcam. The local mirrored OpenCV preview marks shoulders, elbows and wrists green when in bounds and confidence >= 0.5, red otherwise. It does not record video. Windows packages include the updated tracker. Gesture audits now count each packet once, record image/model arm heights and confidence/coverage, begin the 75-second window only after camera/tracker readiness, and sample after the VRM LateUpdate (execution order 13000 vs 12000). Acceptance thresholds remain unchanged. Runner supports --preview for guided capture.
+
+Rebuilt Windows synthetic run: 658 checks PASS and one FAIL (photo reference customizes actual MakeHuman model), exit 1, CORPORATE_RESULT=False. Arm, finger, mirror, endpoint and mesh geometry checks passed for both actual models; complete suite is not approved. Log: Validation/motion-preview-audit.log. Python compilation and five hand-assignment regression tests passed. Real gesture E2E remains unapproved pending visible two-sided framing and repeat.

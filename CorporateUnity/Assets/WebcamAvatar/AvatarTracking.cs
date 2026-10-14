@@ -32,6 +32,8 @@ namespace WebcamAvatar
         public string Error => error;
         public Quaternion HeadRotation { get; private set; } = Quaternion.identity;
         public Point[] PosePoints => PoseDetected && frame.points != null && frame.points.Length == 33 ? frame.points : null;
+        public Point[] ImagePosePoints=>PoseDetected&&frame.imagePose!=null&&frame.imagePose.Length==33?frame.imagePose:null;
+        public int FrameSequence {get;private set;}
         public bool HandsDetected => GetHand(true)!=null || GetHand(false)!=null;
         public bool FullBodyDetected {
             get {var p=PosePoints;if(p==null)return false;foreach(int i in new[]{11,12,13,14,15,16,23,24,25,26,27,28,29,30,31,32})if(p[i].confidence<.55f)return false;return true;}
@@ -168,7 +170,7 @@ namespace WebcamAvatar
                     if(newest.pose)newest.points=poseFilter.Process(newest.points,Time.unscaledTime);else poseFilter.Reset();
                     newest.leftHand=leftHandFilter.Process(newest.leftHand,Time.unscaledTime);
                     newest.rightHand=rightHandFilter.Process(newest.rightHand,Time.unscaledTime);
-                    frame=newest;received=Time.unscaledTime;error=null;
+                    frame=newest;FrameSequence++;received=Time.unscaledTime;error=null;
                 }
             } catch(SocketException e) { if(e.SocketErrorCode!=SocketError.WouldBlock) error=e.Message; }
               catch(Exception e) { error=e.Message; }

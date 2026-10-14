@@ -16,13 +16,13 @@ info = subprocess.STARTUPINFO()
 info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 info.wShowWindow = 0
 gestures = '--gestures' in sys.argv
-process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), *(['--cartoon'] if '--cartoon' in sys.argv else []), '-logFile', str(log)], startupinfo=info)
+process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), *(['--cartoon'] if '--cartoon' in sys.argv else []), *(['--preview'] if '--preview' in sys.argv else []), '-logFile', str(log)], startupinfo=info)
 receiver = None
 try:
     deadline = time.monotonic() + 35
     while time.monotonic() < deadline:
         text = log.read_text(encoding='utf-8', errors='replace')
-        if 'CORPORATE_LIVE_CAMERA_READY' in text:
+        if ('CORPORATE_GESTURES_READY' if gestures else 'CORPORATE_LIVE_CAMERA_READY') in text:
             break
         if process.poll() is not None:
             raise AssertionError('Unity exited before virtual output became ready')

@@ -10,9 +10,13 @@ using UnityEngine.UI;
 
 namespace WebcamAvatar
 {
+    [DefaultExecutionOrder(13000)]
     public sealed class CorporateSmoke : MonoBehaviour
     {
         bool failed;
+        GestureAudit activeAudit;
+        StudioUI auditUi;
+        void LateUpdate(){if(activeAudit!=null&&auditUi!=null&&auditUi.Vrm.Active)activeAudit.Sample(auditUi);}
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Init(){if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")>=0 || Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-live-e2e")>=0)new GameObject("Corporate smoke").AddComponent<CorporateSmoke>();}
         void OnEnable(){Application.logMessageReceived+=Log;}
@@ -27,6 +31,8 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            var packetCounterAudit=new GestureAudit();packetCounterAudit.Sample(ui);packetCounterAudit.Sample(ui);
+            Check(packetCounterAudit.samples==1,"Gesture audit counts each tracking packet once");
             var filter=new AdaptivePoseFilter();float rawEnergy=0,filteredEnergy=0;Point[] stable=null;
             for(int sample=0;sample<120;sample++){
                 var points=new Point[33];float noise=.005f*Mathf.Sin(sample*2*Mathf.PI/3);
@@ -53,16 +59,18 @@ namespace WebcamAvatar
                 if(Array.IndexOf(Environment.GetCommandLineArgs(),"--cartoon")>=0){Call(ui,"SelectAvatarMode",0);while(ui.Vrm.Loading)yield return null;yield return null;}
                 bool gestures=Array.IndexOf(Environment.GetCommandLineArgs(),"--gestures")>=0;
                 var audit=new GestureAudit();
+                if(Array.IndexOf(Environment.GetCommandLineArgs(),"--preview")>=0)Call(ui,"SetTrackingPreview",true);
                 Call(ui,"ToggleTracking");Call(ui,"ToggleCamera");
-                float connectedAt=-1;bool cameraReady=false,clean=false,faceSeen=false,poseSeen=false,handsSeen=false;start=Time.realtimeSinceStartup;
-                while(Time.realtimeSinceStartup-start<(gestures?75:30)) {
+                float connectedAt=-1,captureStart=-1;bool cameraReady=false,clean=false,faceSeen=false,poseSeen=false,handsSeen=false;start=Time.realtimeSinceStartup;
+                while(gestures?(captureStart<0?Time.realtimeSinceStartup-start<45:Time.realtimeSinceStartup-captureStart<75):Time.realtimeSinceStartup-start<30) {
                     if(ui.tracking.Connected && connectedAt<0){connectedAt=Time.realtimeSinceStartup;Debug.Log("CORPORATE_LIVE_TRACKER_READY");}
                     if(!cameraReady && ui.GetComponent<VirtualCameraOutput>().Sending){cameraReady=true;Debug.Log("CORPORATE_LIVE_CAMERA_READY");}
                     faceSeen|=ui.tracking.FaceDetected;poseSeen|=ui.tracking.PoseDetected;handsSeen|=ui.tracking.HandsDetected;
-                    if(gestures)audit.Sample(ui);
+                    if(gestures&&captureStart<0&&cameraReady&&ui.tracking.Connected){captureStart=Time.realtimeSinceStartup;activeAudit=audit;auditUi=ui;Debug.Log("CORPORATE_GESTURES_READY");}
                     if(!gestures&&!clean && Time.realtimeSinceStartup-start>15){clean=true;ui.avatar.previewAnimation=true;ui.avatar.previewExpressionPreset=4;Call(ui,"SetPresentation",true);}
                     yield return null;
                 }
+                activeAudit=null;
                 Check(connectedAt>=0,"Physical webcam produced valid tracking packets");
                 if(gestures){audit.Save(Path.Combine(root,"corporate-gesture-audit.json"));Check(audit.Passed,"Real webcam head reach, arms and finger curl on both sides");}
                 Debug.Log($"CORPORATE_LIVE_DETECTIONS face={faceSeen} pose={poseSeen} hands={handsSeen}");
