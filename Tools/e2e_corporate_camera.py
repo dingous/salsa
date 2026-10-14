@@ -8,14 +8,15 @@ import numpy as np
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-log = ROOT / 'Validation/corporate-live-player.log'
+avatar_model = 'cartoon' if '--cartoon' in sys.argv else 'corporate'
+log = ROOT / f'Validation/{avatar_model}-live-player.log'
 log.parent.mkdir(exist_ok=True)
 log.write_text('', encoding='utf-8')
 info = subprocess.STARTUPINFO()
 info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 info.wShowWindow = 0
 gestures = '--gestures' in sys.argv
-process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), '-logFile', str(log)], startupinfo=info)
+process = subprocess.Popen([str(ROOT / 'CorporateUnity/Build/CorporateAvatarStudio.exe'), '--corporate-live-e2e', *(['--gestures'] if gestures else []), *(['--cartoon'] if '--cartoon' in sys.argv else []), '-logFile', str(log)], startupinfo=info)
 receiver = None
 try:
     deadline = time.monotonic() + 35
@@ -45,7 +46,7 @@ try:
         previous = small
         count += 1
         if count == 60:
-            cv2.imwrite(str(ROOT / 'Validation/corporate-virtual-output.png'), frame)
+            cv2.imwrite(str(ROOT / f'Validation/{avatar_model}-virtual-output.png'), frame)
             assert frame[130:680, 360:920].std() > 15, 'Avatar not visible in virtual output'
     elapsed = time.monotonic() - start
     fps = count / elapsed
@@ -56,7 +57,7 @@ try:
     code = process.wait(timeout=20)
     text = log.read_text(encoding='utf-8', errors='replace')
     passed = code == 0 and 'CORPORATE_LIVE_RESULT=True' in text
-    result = {'result':'PASS' if passed else 'FAIL', 'frames':count, 'seconds':round(elapsed,2), 'receiverFps':round(fps,2),
+    result = {'result':'PASS' if passed else 'FAIL', 'avatar':'cartoon' if '--cartoon' in sys.argv else 'corporate', 'frames':count, 'seconds':round(elapsed,2), 'receiverFps':round(fps,2),
               'resolution':[1280,720], 'physicalTracking':True, 'virtualDriver':'OBS/DirectShow',
               'cleanScreenIncluded':not gestures, 'cleanScreenMotionSource':'real webcam' if gestures else 'animated avatar preview',
               'savedRawWebcamImages':False,
@@ -64,6 +65,7 @@ try:
     if gestures:
         result['gestureAudit'] = json.loads((ROOT / 'CorporateUnity/Validation/corporate-gesture-audit.json').read_text(encoding='utf-8'))
     (ROOT / 'Validation/corporate-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
+    (ROOT / f'Validation/{avatar_model}-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result))
     assert passed, 'Unity hardware/gesture checks failed; see corporate-camera-result.json'
 finally:

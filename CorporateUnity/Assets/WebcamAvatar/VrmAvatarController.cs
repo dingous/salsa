@@ -21,11 +21,14 @@ namespace WebcamAvatar
         readonly Dictionary<HumanBodyBones,Transform> bones=new Dictionary<HumanBodyBones,Transform>();
         readonly Dictionary<HumanBodyBones,Quaternion> localRest=new Dictionary<HumanBodyBones,Quaternion>(),worldRest=new Dictionary<HumanBodyBones,Quaternion>();
         readonly Dictionary<HumanBodyBones,Vector3> directions=new Dictionary<HumanBodyBones,Vector3>();
+        readonly Dictionary<HumanBodyBones,HumanBodyBones> limbEnds=new Dictionary<HumanBodyBones,HumanBodyBones>();
         readonly Dictionary<HumanBodyBones,Quaternion> palmRest=new Dictionary<HumanBodyBones,Quaternion>();
         readonly Dictionary<HumanBodyBones,Vector3> trackedDirections=new Dictionary<HumanBodyBones,Vector3>();
         readonly Dictionary<HumanBodyBones,float> lastSeen=new Dictionary<HumanBodyBones,float>();
         readonly Dictionary<Material,Color> originalColors=new Dictionary<Material,Color>();
         public CorporateAppearance Appearance {get;private set;}
+        public readonly Vector3[] WristTargets=new Vector3[2];
+        public Vector2 ArmAlignment(bool left){var a=left?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm;var b=left?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm;var c=left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand;return new Vector2(Vector3.Dot((bones[b].position-bones[a].position).normalized,trackedDirections[a]),Vector3.Dot((bones[c].position-bones[b].position).normalized,trackedDirections[b]));}
         public void ApplyAppearance() {
             if(Instance==null)return;
             if(Appearance!=null)Appearance.Apply(settings.Profile);
@@ -69,6 +72,7 @@ namespace WebcamAvatar
                 if(Instance!=null)Destroy(Instance.gameObject);
                 Instance=candidate;candidate=null;SourcePath=Path.GetFullPath(path);origin=Instance.transform.position;facing=Instance.transform.rotation;
                 bones.Clear();localRest.Clear();worldRest.Clear();directions.Clear();palmRest.Clear();
+                limbEnds.Clear();
                 trackedDirections.Clear();lastSeen.Clear();
                 foreach(HumanBodyBones key in Enum.GetValues(typeof(HumanBodyBones))) {
                     if(key==HumanBodyBones.LastBone)continue;
@@ -77,6 +81,8 @@ namespace WebcamAvatar
                     directions[key]=bone.childCount>0?bone.GetChild(0).position-bone.position:bone.position-bone.parent.position;
                 }
                 foreach(bool left in new[]{true,false}) {
+                    var chain=left?new[]{HumanBodyBones.LeftUpperArm,HumanBodyBones.LeftLowerArm,HumanBodyBones.LeftHand,HumanBodyBones.LeftUpperLeg,HumanBodyBones.LeftLowerLeg,HumanBodyBones.LeftFoot,HumanBodyBones.LeftToes}:new[]{HumanBodyBones.RightUpperArm,HumanBodyBones.RightLowerArm,HumanBodyBones.RightHand,HumanBodyBones.RightUpperLeg,HumanBodyBones.RightLowerLeg,HumanBodyBones.RightFoot,HumanBodyBones.RightToes};
+                    foreach(int link in new[]{0,1,3,4,5})if(bones.ContainsKey(chain[link])&&bones.ContainsKey(chain[link+1])){directions[chain[link]]=bones[chain[link+1]].position-bones[chain[link]].position;limbEnds[chain[link]]=chain[link+1];}
                     var wrist=left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand;
                     var index=left?HumanBodyBones.LeftIndexProximal:HumanBodyBones.RightIndexProximal;
                     var middle=left?HumanBodyBones.LeftMiddleProximal:HumanBodyBones.RightMiddleProximal;
@@ -111,7 +117,20 @@ namespace WebcamAvatar
             else bone.localRotation=Quaternion.RotateTowards(bone.localRotation,Quaternion.Slerp(bone.localRotation,target,t),step);
         }
         void Aim(HumanBodyBones key,Vector3 direction,float t) {
-            if(direction.sqrMagnitude<.000001f || !directions.TryGetValue(key,out var rest) || rest.sqrMagnitude<.000001f)return;
+            if(direction.sqrMagnitude<.000001f)return;
+            if(limbEnds.TryGetValue(key,out var end)){
+                var actual=bones[end].position-bones[key].position;
+                // Directions/landmarks are already filtered. A second rotation
+                // low-pass makes the forearm chase a moving upper-arm frame.
+                // Preserve the angular speed cap while following that target.
+                if(actual.sqrMagnitude>.000001f){
+                    var parent=bones[key].parent;
+                    var from=parent.InverseTransformVector(actual);var to=parent.InverseTransformVector(direction);
+                    Rotate(key,Quaternion.FromToRotation(from,to)*bones[key].localRotation,1);
+                }
+                return;
+            }
+            if(!directions.TryGetValue(key,out var rest)||rest.sqrMagnitude<.000001f)return;
             Rotate(key,Quaternion.FromToRotation(rest,direction)*worldRest[key],t,true);
         }
         void Segment(HumanBodyBones key,Point[] p,int a,int b,float t,Vector3 fallback) {
@@ -153,6 +172,7 @@ namespace WebcamAvatar
                         // Wrist direction becomes unstable at the shoulder.
                         // The visible elbow provides the stable bend direction.
                         if(target.magnitude<minimum)target=pole.normalized*minimum;
+                        WristTargets[left?0:1]=bones[upper].position+target;
                         SolveArm(target,pole,lengthA,lengthB,out var ikUpper,out var ikLower);
                         var filteredUpper=FilterDirection(upper,ikUpper,true);
                         Aim(upper,filteredUpper,t);

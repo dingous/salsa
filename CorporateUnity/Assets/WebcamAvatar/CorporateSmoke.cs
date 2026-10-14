@@ -49,6 +49,7 @@ namespace WebcamAvatar
             if(!ui.Vrm.Active){Application.Quit(1);yield break;}
             string root=Path.GetFullPath(Path.Combine(Application.dataPath,"..","..","Validation"));Directory.CreateDirectory(root);
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-live-e2e")>=0) {
+                if(Array.IndexOf(Environment.GetCommandLineArgs(),"--cartoon")>=0){Call(ui,"SelectAvatarMode",0);while(ui.Vrm.Loading)yield return null;yield return null;}
                 bool gestures=Array.IndexOf(Environment.GetCommandLineArgs(),"--gestures")>=0;
                 var audit=new GestureAudit();
                 Call(ui,"ToggleTracking");Call(ui,"ToggleCamera");
@@ -73,9 +74,11 @@ namespace WebcamAvatar
             var vrm=ui.Vrm;var appearance=vrm.Appearance;
             Call(ui,"SelectAvatarMode",0);while(vrm.Loading)yield return null;yield return null;
             Check(vrm.Active&&!ui.avatar.Profile.corporate&&vrm.ModelName.Contains("Seed"),"Cartoon selector loads actual Seed-san VRM");
+            yield return VerifyRig(ui,"Cartoon");
             Call(ui,"SelectAvatarMode",1);while(vrm.Loading)yield return null;yield return null;
             appearance=vrm.Appearance;
             Check(vrm.Active&&ui.avatar.Profile.corporate&&appearance.IsCorporateHuman,"Corporate selector restores actual MakeHuman");
+            yield return VerifyRig(ui,"Corporativo");
             yield return new WaitForSecondsRealtime(.5f);
             Check(appearance!=null && appearance.IsCorporateHuman,"Actual MakeHuman identity morphs available");
             Check(vrm.ExpressionCount>=67,"52 ARKit expressions and 15 visemes");
@@ -210,6 +213,68 @@ namespace WebcamAvatar
             Debug.Log("CORPORATE_RESULT="+(!failed));Application.Quit(failed?1:0);
         }
         static Point P(float x,float y,float z=0)=>new Point{x=x,y=y,z=z,confidence=1};
+        IEnumerator VerifyRig(StudioUI ui,string label)
+        {
+            var rig=ui.Vrm.Instance.Runtime.ControlRig;var packet=new TrackingFrame{pose=true,face=false,shapes=Array.Empty<Shape>(),rotation=Array.Empty<float>()};
+            using(var udp=new UdpClient())foreach(bool mirror in new[]{false,true}){
+                ui.tracking.mirror=mirror;
+                var points=new Point[33];for(int i=0;i<33;i++)points[i]=new Point();
+                points[0]=P(0,-.8f);points[11]=P(.2f,-.5f);points[12]=P(-.2f,-.5f);
+                // Elbows deliberately occluded: desk cameras often lose them.
+                points[15]=P(.02f,-.8f);points[16]=P(-.02f,-.8f);packet.points=points;
+                yield return Send(udp,packet,ui.tracking.port,1.4f);
+                var head=rig.GetBoneTransform(HumanBodyBones.Head);
+                foreach(var side in new[]{HumanBodyBones.LeftHand,HumanBodyBones.RightHand})Check(Vector3.Distance(rig.GetBoneTransform(side).position,head.position)<.3f,label+" head reach with hidden elbow "+side+" mirror "+mirror);
+                for(int side=0;side<2;side++){
+                    int source=mirror?1-side:side,s=source==0?11:12,e=source==0?13:14,w=source==0?15:16;
+                    var upper=rig.GetBoneTransform(side==0?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm);var lower=rig.GetBoneTransform(side==0?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm);var hand=rig.GetBoneTransform(side==0?HumanBodyBones.LeftHand:HumanBodyBones.RightHand);
+                    foreach(float height in new[]{-.3f,.3f}){
+                        points[e]=P(points[s].x,points[s].y-height*.5f,-.12f);points[w]=P(points[s].x,points[s].y-height,-.2f);
+                        yield return Send(udp,packet,ui.tracking.port,1.3f);
+                        Check((hand.position-upper.position).y*height>0,label+" arm raise/lower "+side+" "+height+" mirror "+mirror+" height "+(hand.position-upper.position).y+" observed "+(ui.tracking.PosePoints[s].y-ui.tracking.PosePoints[w].y)+" target "+(ui.Vrm.WristTargets[side].y-upper.position.y)+" alignment "+ui.Vrm.ArmAlignment(side==0));
+                        Check(Vector3.Angle(lower.position-upper.position,hand.position-lower.position)<=151,label+" elbow anatomy "+side+" mirror "+mirror);
+                    }
+                }
+                var trackedHand=new Point[21];trackedHand[0]=P(0,0);
+                var first=new[]{HumanBodyBones.LeftThumbProximal,HumanBodyBones.LeftIndexProximal,HumanBodyBones.LeftMiddleProximal,HumanBodyBones.LeftRingProximal,HumanBodyBones.LeftLittleProximal,HumanBodyBones.RightThumbProximal,HumanBodyBones.RightIndexProximal,HumanBodyBones.RightMiddleProximal,HumanBodyBones.RightRingProximal,HumanBodyBones.RightLittleProximal};
+                var open=new Quaternion[30];
+                for(int curl=0;curl<2;curl++){
+                    for(int f=0;f<5;f++)for(int j=0;j<4;j++)trackedHand[1+f*4+j]=P((f-2)*.018f,-.03f-(curl==0?j*.018f:Mathf.Sin(j*.6f)*.025f),curl==0?0:-(1-Mathf.Cos(j*.6f))*.04f);
+                    packet.leftHand=trackedHand;packet.rightHand=trackedHand;
+                    yield return Send(udp,packet,ui.tracking.port,1.4f);
+                    int index=0;foreach(var start in first)for(int j=0;j<3;j++,index++){
+                        var bone=rig.GetBoneTransform((HumanBodyBones)((int)start+j));
+                        if(curl==0)open[index]=bone.localRotation;else Check(Quaternion.Angle(open[index],bone.localRotation)>3,label+" finger opens/closes "+start+" joint "+j+" mirror "+mirror);
+                    }
+                }
+                packet.face=true;packet.rotation=new[]{1f,0,0,0,1f,0,0,0,1f};
+                packet.shapes=new[]{new Shape{name="jawOpen",value=.9f},new Shape{name="eyeBlinkLeft",value=.9f}};
+                yield return Send(udp,packet,ui.tracking.port,1);
+                var expressions=ui.Vrm.Instance.Runtime.Expression;
+                var mouth=label=="Cartoon"?ExpressionKey.Aa:ExpressionKey.CreateCustom("jawOpen");
+                var eye=label=="Cartoon"?ExpressionKey.CreateFromPreset(mirror?ExpressionPreset.blinkRight:ExpressionPreset.blinkLeft):ExpressionKey.CreateCustom(mirror?"eyeBlinkRight":"eyeBlinkLeft");
+                Check(expressions.GetWeight(mouth)>.6f,label+" jaw expression mirror "+mirror);
+                Check(expressions.GetWeight(eye)>.6f,label+" unilateral blink mirror "+mirror);
+                var neutralHead=head.rotation;float yaw=.3f;
+                packet.rotation=new[]{Mathf.Cos(yaw),0,Mathf.Sin(yaw),0,1,0,-Mathf.Sin(yaw),0,Mathf.Cos(yaw)};
+                yield return Send(udp,packet,ui.tracking.port,1.1f);
+                Check(Quaternion.Angle(neutralHead,head.rotation)>10,label+" head rotation mirror "+mirror);
+                packet.face=false;packet.shapes=Array.Empty<Shape>();packet.leftHand=null;packet.rightHand=null;
+                points[23]=P(.15f,0);points[24]=P(-.15f,0);
+                for(int side=0;side<2;side++){
+                    int source=mirror?1-side:side,h=source==0?23:24,k=source==0?25:26,a=source==0?27:28;
+                    var hip=rig.GetBoneTransform(side==0?HumanBodyBones.LeftUpperLeg:HumanBodyBones.RightUpperLeg);var knee=rig.GetBoneTransform(side==0?HumanBodyBones.LeftLowerLeg:HumanBodyBones.RightLowerLeg);
+                    foreach(float forward in new[]{-.25f,.25f}){
+                        points[k]=P(points[h].x,.3f,forward);points[a]=P(points[h].x,.6f,forward);
+                        yield return Send(udp,packet,ui.tracking.port,1.1f);
+                        Check((knee.position-hip.position).z*forward>0,label+" leg forward/back "+side+" mirror "+mirror);
+                    }
+                }
+                points[11].x+=.15f;points[12].x+=.15f;
+                yield return Send(udp,packet,ui.tracking.port,1.1f);
+                Check(Mathf.Abs((rig.GetBoneTransform(HumanBodyBones.Spine).rotation*Vector3.up).x)>.1f,label+" torso lean mirror "+mirror);
+            }
+        }
         static IEnumerator Send(UdpClient udp,TrackingFrame packet,int port,float duration){byte[] bytes=System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(packet));float start=Time.realtimeSinceStartup;while(Time.realtimeSinceStartup-start<duration){udp.Send(bytes,bytes.Length,"127.0.0.1",port);yield return null;}}
         static bool Enabled(VrmAvatarController vrm,string name){foreach(var r in vrm.Instance.GetComponentsInChildren<Renderer>())if(r.name.ToLowerInvariant().Contains(name))return r.enabled;return false;}
         void OnDisable(){Application.logMessageReceived-=Log;}
