@@ -25,6 +25,9 @@ namespace WebcamAvatar
         readonly Dictionary<HumanBodyBones,Quaternion> palmRest=new Dictionary<HumanBodyBones,Quaternion>();
         readonly Dictionary<HumanBodyBones,Vector3> trackedDirections=new Dictionary<HumanBodyBones,Vector3>();
         readonly Dictionary<HumanBodyBones,float> lastSeen=new Dictionary<HumanBodyBones,float>();
+        readonly Dictionary<HumanBodyBones,Vector3> elbowPoles=new Dictionary<HumanBodyBones,Vector3>();
+        readonly Dictionary<HumanBodyBones,Quaternion> heldHandPose=new Dictionary<HumanBodyBones,Quaternion>();
+        readonly Dictionary<HumanBodyBones,float> handSeen=new Dictionary<HumanBodyBones,float>();
         readonly Dictionary<Material,Color> originalColors=new Dictionary<Material,Color>();
         public CorporateAppearance Appearance {get;private set;}
         public readonly Vector3[] WristTargets=new Vector3[2];
@@ -50,31 +53,31 @@ namespace WebcamAvatar
         bool snapPose;
         public static string DefaultPath=>Path.Combine(Application.streamingAssetsPath,"Avatars","CorporateHuman.vrm");
         public async Task Load(string path) {
-            if(Loading)throw new InvalidOperationException("Um modelo já está sendo carregado.");
+            if(Loading)throw new InvalidOperationException("Um modelo jÃ¡ estÃ¡ sendo carregado.");
             Loading=true;Vrm10Instance candidate=null;
             try {
                 var file=new FileInfo(path);
-                if(!file.Exists || !path.EndsWith(".vrm",StringComparison.OrdinalIgnoreCase))throw new IOException("Selecione um arquivo .vrm válido.");
-                if(file.Length>150*1024*1024)throw new IOException("O modelo deve ter até 150 MB.");
+                if(!file.Exists || !path.EndsWith(".vrm",StringComparison.OrdinalIgnoreCase))throw new IOException("Selecione um arquivo .vrm vÃ¡lido.");
+                if(file.Length>150*1024*1024)throw new IOException("O modelo deve ter atÃ© 150 MB.");
                 candidate=await Vrm10.LoadPathAsync(path,canLoadVrm0X:true,showMeshes:false);
-                if(candidate==null)throw new IOException("O arquivo não contém um avatar VRM compatível.");
+                if(candidate==null)throw new IOException("O arquivo nÃ£o contÃ©m um avatar VRM compatÃ­vel.");
                 candidate.UpdateType=Vrm10Instance.UpdateTypes.None;
                 var rig=candidate.Runtime.ControlRig;
-                if(rig==null || rig.GetBoneTransform(HumanBodyBones.Head)==null)throw new IOException("O modelo não possui rig humanoide válido.");
+                if(rig==null || rig.GetBoneTransform(HumanBodyBones.Head)==null)throw new IOException("O modelo nÃ£o possui rig humanoide vÃ¡lido.");
                 // VRM faces +Z. Our studio camera is on -Z.
                 candidate.transform.rotation=Quaternion.Euler(0,180,0);
                 candidate.transform.position=Vector3.zero;
                 var renderers=candidate.GetComponentsInChildren<Renderer>(true);
                 var bounds=new Bounds();bool first=true;
                 foreach(var renderer in renderers){if(first){bounds=renderer.bounds;first=false;}else bounds.Encapsulate(renderer.bounds);}
-                if(first || bounds.size.y<.1f)throw new IOException("O modelo não contém malhas visíveis.");
+                if(first || bounds.size.y<.1f)throw new IOException("O modelo nÃ£o contÃ©m malhas visÃ­veis.");
                 float scale=2.15f/bounds.size.y;candidate.transform.localScale*=scale;
                 candidate.transform.position=new Vector3(-bounds.center.x*scale,-bounds.min.y*scale-.30f,-bounds.center.z*scale);
                 if(Instance!=null)Destroy(Instance.gameObject);
                 Instance=candidate;candidate=null;SourcePath=Path.GetFullPath(path);origin=Instance.transform.position;facing=Instance.transform.rotation;
                 bones.Clear();localRest.Clear();worldRest.Clear();directions.Clear();palmRest.Clear();
                 limbEnds.Clear();
-                trackedDirections.Clear();lastSeen.Clear();
+                trackedDirections.Clear();lastSeen.Clear();elbowPoles.Clear();heldHandPose.Clear();handSeen.Clear();
                 foreach(HumanBodyBones key in Enum.GetValues(typeof(HumanBodyBones))) {
                     if(key==HumanBodyBones.LastBone)continue;
                     var bone=rig.GetBoneTransform(key);if(bone==null)continue;
@@ -164,6 +167,11 @@ namespace WebcamAvatar
                     if(observedWidth>.12f&&lengthA>.01f&&lengthB>.01f) {
                         float scale=Mathf.Clamp(modelWidth/observedWidth,.4f,3f);
                         Vector3 pole=Valid(p,s,e)?P(p[e])-P(p[s]):trackedDirections.TryGetValue(upper,out var lastUpper)?lastUpper:new Vector3(left?.4f:-.4f,.2f,-.15f);
+                        if(pole.sqrMagnitude>.000001f){
+                            pole=pole.normalized;
+                            if(!snapPose&&elbowPoles.TryGetValue(upper,out var previousPole))pole=Vector3.Slerp(previousPole,pole,1-Mathf.Exp(-10*Time.unscaledDeltaTime)).normalized;
+                            elbowPoles[upper]=pole;
+                        }
                         Vector3 target=(P(p[w])-P(p[s]))*scale;
                         // Near-face gestures need a shared head anchor, because
                         // human and avatar neck/shoulder proportions differ.
@@ -291,6 +299,11 @@ namespace WebcamAvatar
             if(Appearance!=null)Appearance.ApplyIdentity(settings.Profile);
             snapPose=false;
         }
+        void RememberHand(HumanBodyBones key){if(bones.TryGetValue(key,out var bone)){heldHandPose[key]=bone.localRotation;handSeen[key]=clock;}}
+        void ReleaseHand(HumanBodyBones key){
+            if(handSeen.TryGetValue(key,out var seen)&&clock-seen<.18f&&heldHandPose.TryGetValue(key,out var held))Rotate(key,held,1);
+            else if(localRest.TryGetValue(key,out var neutral))Rotate(key,neutral,snapPose?1:1-Mathf.Exp(-4*Time.unscaledDeltaTime));
+        }
         void Hands(bool left,float t) {
             var hand=settings.previewAnimation?null:tracking.GetHand(left);
             var wrist=left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand;
@@ -298,7 +311,8 @@ namespace WebcamAvatar
                 Vector3 up=P(hand[9])-P(hand[0]),across=P(hand[17])-P(hand[5]);
                 Vector3 normal=Vector3.Cross(across,up);if(!left)normal=-normal;
                 if(normal.sqrMagnitude>.000001f && palmRest.TryGetValue(wrist,out var basis))Rotate(wrist,Quaternion.LookRotation(normal,up)*Quaternion.Inverse(basis)*worldRest[wrist],t,true);
-            }else if(localRest.TryGetValue(wrist,out var rest))Rotate(wrist,rest,t);
+                RememberHand(wrist);
+            }else ReleaseHand(wrist);
             HumanBodyBones[] starts=left?new[]{HumanBodyBones.LeftThumbProximal,HumanBodyBones.LeftIndexProximal,HumanBodyBones.LeftMiddleProximal,HumanBodyBones.LeftRingProximal,HumanBodyBones.LeftLittleProximal}:new[]{HumanBodyBones.RightThumbProximal,HumanBodyBones.RightIndexProximal,HumanBodyBones.RightMiddleProximal,HumanBodyBones.RightRingProximal,HumanBodyBones.RightLittleProximal};
             for(int finger=0;finger<5;finger++)for(int joint=0;joint<3;joint++) {
                 var key=(HumanBodyBones)((int)starts[finger]+joint);int index=1+finger*4+joint;
@@ -306,8 +320,9 @@ namespace WebcamAvatar
                     var target=FilterDirection(key,P(hand[index+1])-P(hand[index]),true);
                     var palmDelta=bones[wrist].rotation*Quaternion.Inverse(worldRest[wrist]);
                     if(target.sqrMagnitude>.000001f&&axis.sqrMagnitude>.000001f)Rotate(key,Quaternion.FromToRotation(palmDelta*axis,target)*palmDelta*worldRest[key],t,true);
+                    RememberHand(key);
                 }
-                else if(localRest.TryGetValue(key,out var fingerRest))Rotate(key,fingerRest,t);
+                else ReleaseHand(key);
             }
         }
         void OnDestroy(){if(Instance!=null)Destroy(Instance.gameObject);}

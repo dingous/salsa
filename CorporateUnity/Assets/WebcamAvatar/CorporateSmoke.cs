@@ -48,6 +48,12 @@ namespace WebcamAvatar
             Check(Mathf.Abs(stable[0].x-.7f)<.02f,"One Euro follows intentional 20 cm movement within 500 ms");
             Check(filter.Process(null,4.5f)==stable,"Brief landmark dropout holds the last observation");
             Check(filter.Process(null,4.8f)==null,"Long landmark dropout releases held observation");
+            var confidenceFilter=new AdaptivePoseFilter(1);
+            confidenceFilter.Process(new[]{P(.5f,0)},0);
+            var hidden=new[]{new Point{x=9,confidence=0}};
+            var held=confidenceFilter.Process(hidden,.05f);
+            Check(held[0].confidence>=.55f&&Mathf.Abs(held[0].x-.5f)<.001f,"Brief individual landmark occlusion preserves filtered pose");
+            Check(confidenceFilter.Process(hidden,.2f)[0].confidence<.55f,"Expired individual landmark occlusion releases pose");
             foreach(var target in new[]{new Vector3(.15f,.45f,-.1f),new Vector3(-.15f,.45f,-.1f),new Vector3(0,-.4f,-.25f)}) {
                 VrmAvatarController.SolveArm(target,new Vector3(.3f,.1f,0),.32f,.28f,out var upper,out var lower);
                 Check(Vector3.Distance(upper*.32f+lower*.28f,target)<.001f,"IK reaches seated/head target "+target);

@@ -209,3 +209,14 @@ User requested another physical E2E and main push. Current Corporate runtime pas
 Both models now have successful actual physical gesture captures (Cartoon documented above, Corporate in this capture). Their arm/hand retarget implementation is shared; no new rig animation defect was reproduced, so no speculative motion change was made. Existing corrections were validated. This does not resolve the separate photo-reference check failure or certify all distortion/jitter conditions.
 
 Fixed runner evidence bug: Cartoon capture no longer overwrites corporate-camera-result.json; each model writes its own result and failure message references it. Native binaries remain the already updated builds. Evidence: Validation/corporate-camera-result.json and Validation/corporate-live-player.log.
+
+
+## Movement continuity update — 2026-10-14
+
+Addressed abrupt loss/recovery transitions: individual low-confidence landmarks retain filtered positions up to 150 ms before release, preserving filter continuity during brief occlusion. Wrists/finger joints retain last local pose up to 180 ms after hand loss, then relax with exponential smoothing rate 4/s instead of the normal tracking rate. Elbow pole directions use exponential interpolation at 10/s before analytic IK, preserving the wrist endpoint rather than independently smoothing solved limb halves. State clears on model reload. Both models use these changes. Holding positions is interpolation through missing measurements, not new detector observations; current gesture audit counts may include held observations.
+
+Rebuilt native suite: 661 PASS, no FAIL, exit 0, CORPORATE_RESULT=True (including photo reference on this execution). Added tests that a brief individual occlusion preserves pose and expired occlusion releases it. Geometry/endpoint/rig/mirror/finger suites passed for both actual models. Log: Validation/motion-continuity.log.
+
+New physical Webcam 0 captures with user performing slow gestures both PASS. Corporate: 1215 unique packets, hand samples 454 / 691, avatar head distances 0.232 / 0.229 m, source arm excursions 0.439 / 0.306 m; avatar finger curl excursions 83.1 / 79.0 degrees. Cartoon: 891 packets, hand samples 300 / 428, avatar head distances 0.132 / 0.102 m, source arm excursions 0.629 / 0.638 m; avatar curl excursions 82.0 / 76.4 degrees. Each OBS receiver captured 1801 frames at 1280x720 / 30.02 FPS. No raw camera images saved. Logs/results are model-specific in Validation.
+
+Windows packages CorporateUnity/Build, Build/AvatarStudio.exe, publish/Windows/AvatarStudio.exe and preserved duplicate CorporateAvatarStudio were updated; managed assembly SHA256 verified equal. Naturalness is subjective and the real audit measures aggregate reach/curl/amplitude, not jerk or stationary jitter. The automated dropout tests validate the new continuity behavior, but do not certify perfect fingers, uninterrupted tracking or every distortion scenario.
