@@ -191,3 +191,12 @@ User confirmed Webcam 0. The latest Corporate real-camera run remained FAIL: 161
 Added optional Transmissão → Ver enquadramento da webcam. The local mirrored OpenCV preview marks shoulders, elbows and wrists green when in bounds and confidence >= 0.5, red otherwise. It does not record video. Windows packages include the updated tracker. Gesture audits now count each packet once, record image/model arm heights and confidence/coverage, begin the 75-second window only after camera/tracker readiness, and sample after the VRM LateUpdate (execution order 13000 vs 12000). Acceptance thresholds remain unchanged. Runner supports --preview for guided capture.
 
 Rebuilt Windows synthetic run: 658 checks PASS and one FAIL (photo reference customizes actual MakeHuman model), exit 1, CORPORATE_RESULT=False. Arm, finger, mirror, endpoint and mesh geometry checks passed for both actual models; complete suite is not approved. Log: Validation/motion-preview-audit.log. Python compilation and five hand-assignment regression tests passed. Real gesture E2E remains unapproved pending visible two-sided framing and repeat.
+
+
+## Guided Webcam 0 capture after preview confirmation — 2026-10-14
+
+User confirmed both sides green in the updated local preview. Actual Cartoon capture PASS, exit 0: 1089 unique samples; 483 / 487 hand samples; avatar wrist-to-head minima 0.153 / 0.179 m; source arm excursions 0.464 / 0.473 m; tracked finger curl excursions 78.2 / 47.8 degrees, avatar 69.6 / 55.3 degrees. OBS received 1801 frames at 1280x720 / 30.02 FPS. This verifies these aggregate real gesture criteria, not absence of every possible distortion, isolated finger fidelity or measured stationary jitter.
+
+First Corporate capture FAIL: both head proximity and hand curl passed, but one source arm excursion was 0.180 m vs >0.25 m required (other 0.364 m). Avatar head minima 0.213 / 0.248 m. Evidence preserved in Validation/corporate-framing-first-result.json. Second Corporate capture FAIL with no detected hands, 561 pose samples and 557 / 560 estimated wrists outside the image. No accepted arm/head observations were available. This second capture cannot validate the requested gestures. Both receivers delivered 1801 frames at 30.02 FPS.
+
+No movement code or thresholds changed during these captures. No raw webcam images saved. Main/master updated with results; complete two-model physical E2E remains unapproved, as does the previously failed photo-reference synthetic check.
