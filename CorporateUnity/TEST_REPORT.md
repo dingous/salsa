@@ -136,3 +136,7 @@ Rebuilt Windows application and updated bundled model/license (82,524,092-byte V
 ## Direct avatar selector — 2026-10-14
 
 Windows header now switches Cartoon (procedural avatar) / Corporativo (realistic MakeHuman) inside the same application. Corporate reuse retains loaded model and clothing selection. Header synchronizes with actual active model, and selection is blocked during loading. Rebuilt player regression: 430 checks passed, exit 0. Log: Validation/corporate-mode-selector.log.
+
+## Cartoon VRM selector correction — 2026-10-14
+
+Cartoon now loads the bundled Seed-san VRM, replacing the prior procedural shortcut. Corporate loads MakeHuman. Header synchronizes by loaded model type rather than merely whether any VRM is active. Seed model and license included in Windows distribution. Updated player: 430 checks passed, exit 0; both model transitions verified. Log: Validation/corporate-cartoon-vrm.log.

@@ -225,11 +225,10 @@ namespace WebcamAvatar
         }
         void SelectAvatarMode(int mode)
         {
-            if(busy){styleDropdown.SetValueWithoutNotify(Vrm.Active?1:0);return;}
+            if(busy){styleDropdown.SetValueWithoutNotify(CurrentAvatarMode);return;}
             if(mode==0){
-                Vrm.UseProcedural();avatar.Profile.vrmSource=null;avatar.Profile.style=0;
-                SetVrmPresentation(false);SyncAppearance();RefreshModelStatus();
-                SetStatus("Avatar Cartoon ativo. A webcam e a transmissão continuam disponíveis.");
+                avatar.Profile.style=0;avatar.Profile.corporate=false;
+                StartCoroutine(LoadVrmRoutine(Path.Combine(Application.streamingAssetsPath,"Avatars","Seed-san.vrm")));
             }else{
                 avatar.Profile.style=1;avatar.Profile.corporate=true;
                 if(Vrm.Instance!=null&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman){
@@ -239,6 +238,7 @@ namespace WebcamAvatar
                 }else StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));
             }
         }
+        int CurrentAvatarMode=>Vrm.Active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman?1:0;
         public IEnumerator LoadVrmRoutine(string path)
         {
             if(busy)yield break;busy=true;SetStatus("Carregando malhas, texturas, expressões e rig do avatar VRM…");
@@ -260,7 +260,7 @@ namespace WebcamAvatar
             modelStatus.text=active?$"{Vrm.ModelName}\n{facialInfo}\nRig Humanoid · mãos e dedos\nCréditos: {string.Join(", ",Vrm.Instance.Vrm.Meta.Authors)}":"Gerador procedural ativo";
             rigStatus.text=active?"UNIVRM  /  ROSTO · CORPO · MÃOS":"AVATAR PRO  /  RIG FACIAL 52";
             bool editable=!active || Vrm.Appearance!=null && Vrm.Appearance.IsCorporateHuman;
-            styleDropdown.interactable=!busy;styleDropdown.SetValueWithoutNotify(active?1:0);hairDropdown.interactable=editable;glassesToggle.interactable=editable;beardToggle.interactable=editable && active;
+            styleDropdown.interactable=!busy;styleDropdown.SetValueWithoutNotify(CurrentAvatarMode);hairDropdown.interactable=editable;glassesToggle.interactable=editable;beardToggle.interactable=editable && active;
             clothingDropdown.interactable=active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman;
             SetButtonLabel(generateButton,"Personalizar pela foto  →");
         }
@@ -518,7 +518,7 @@ namespace WebcamAvatar
             Application.OpenURL("https://obsproject.com/kb/virtual-camera-guide");
         }
         IEnumerator LoadSavedModel(string path,string identityName){yield return StartCoroutine(LoadVrmRoutine(path));avatar.Profile.name=identityName;previewName.text=nameField.text=identityName;SyncAppearance();}
-        void SyncAppearance(){styleDropdown.SetValueWithoutNotify(Vrm.Active?1:0);hairDropdown.SetValueWithoutNotify(avatar.Profile.hairStyle);clothingDropdown.SetValueWithoutNotify(avatar.Profile.clothingStyle);glassesToggle.SetIsOnWithoutNotify(avatar.Profile.glasses);beardToggle.SetIsOnWithoutNotify(avatar.Profile.beard);}
+        void SyncAppearance(){styleDropdown.SetValueWithoutNotify(CurrentAvatarMode);hairDropdown.SetValueWithoutNotify(avatar.Profile.hairStyle);clothingDropdown.SetValueWithoutNotify(avatar.Profile.clothingStyle);glassesToggle.SetIsOnWithoutNotify(avatar.Profile.glasses);beardToggle.SetIsOnWithoutNotify(avatar.Profile.beard);}
         void SetGreenScreen(bool value)
         {
             if(backgroundRenderer==null)return;
