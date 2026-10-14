@@ -231,7 +231,7 @@ namespace WebcamAvatar
             Button("Executar demonstração programada",advancedPanel.transform,24,346,322,40,()=>StartLaboratory(true));
             Button("Parar teste",advancedPanel.transform,24,400,154,36,StopLaboratory);
             Button("Fechar painel",advancedPanel.transform,190,400,156,36,()=>{Destroy(advancedPanel);advancedPanel=null;});
-            Label("Modelos Cartoon e Corporativo. Planos salvos localmente em Laboratory. Para IA: Ollama + qwen2.5:3b.",advancedPanel.transform,24,454,322,76,12,muted);responsive.LayoutAdvanced();
+            Label("Modelos Cartoon e Corporativo. Planos salvos localmente em Laboratory. Para IA: Ollama + qwen3.5:4b.",advancedPanel.transform,24,454,322,76,12,muted);responsive.LayoutAdvanced();
         }
         void StartLaboratory(bool demo){
             StopLaboratory();if(trackerJob!=null)ToggleTracking();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);

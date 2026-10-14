@@ -17,11 +17,11 @@ def validate(plan):
 def generate(prompt):
     if not isinstance(prompt,str) or not 1<=len(prompt.strip())<=1000: raise ValueError('Descreva o teste em até 1000 caracteres.')
     instruction='Generate only a JSON avatar animation plan with version:1 and steps:[{action,duration,intensity}]. Up to 12 steps, duration 0.5 to 5 seconds, intensity 0 to 1. Allowed actions: '+','.join(sorted(ACTIONS))+'. User request: '+prompt
-    body=json.dumps(dict(model=os.getenv('DINGOUS_AI_MODEL','qwen2.5:3b'),prompt=instruction,stream=False,format='json')).encode()
+    body=json.dumps(dict(model=os.getenv('DINGOUS_AI_MODEL','qwen3.5:4b'),prompt=instruction,stream=False,format='json',think=False,keep_alive=0,options=dict(num_ctx=2048,num_predict=768,temperature=.2))).encode()
     request=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=body,headers={'Content-Type':'application/json'})
     try:
         with urllib.request.urlopen(request,timeout=90) as response: result=json.loads(response.read(256000))
-    except (OSError,urllib.error.URLError) as e: raise RuntimeError('IA local indisponível. Instale/inicie Ollama e baixe o modelo qwen2.5:3b, ou configure DINGOUS_AI_MODEL.') from e
+    except (OSError,urllib.error.URLError) as e: raise RuntimeError('IA local indisponível. Instale/inicie Ollama e baixe o modelo qwen3.5:4b, ou configure DINGOUS_AI_MODEL.') from e
     return validate(json.loads(result.get('response','{}')))
 def point(x,y,z=0):return dict(x=x,y=y,z=z,confidence=1)
 def frame(action,phase,intensity):
