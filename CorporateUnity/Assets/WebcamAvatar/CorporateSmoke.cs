@@ -26,6 +26,21 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            var filter=new AdaptivePoseFilter();float rawEnergy=0,filteredEnergy=0;Point[] stable=null;
+            for(int sample=0;sample<120;sample++){
+                var points=new Point[33];float noise=.005f*Mathf.Sin(sample*2*Mathf.PI/3);
+                for(int i=0;i<33;i++)points[i]=P(.5f+noise,0);
+                stable=filter.Process(points,sample/30f);
+                if(sample>30){rawEnergy+=noise*noise;filteredEnergy+=(stable[0].x-.5f)*(stable[0].x-.5f);}
+            }
+            Check(filteredEnergy<rawEnergy*.25f,"One Euro suppresses resting jitter energy by at least 75 percent");
+            for(int sample=120;sample<135;sample++){
+                var points=new Point[33];for(int i=0;i<33;i++)points[i]=P(.7f,0);
+                stable=filter.Process(points,sample/30f);
+            }
+            Check(Mathf.Abs(stable[0].x-.7f)<.02f,"One Euro follows intentional 20 cm movement within 500 ms");
+            Check(filter.Process(null,4.5f)==stable,"Brief landmark dropout holds the last observation");
+            Check(filter.Process(null,4.8f)==null,"Long landmark dropout releases held observation");
             foreach(var target in new[]{new Vector3(.15f,.45f,-.1f),new Vector3(-.15f,.45f,-.1f),new Vector3(0,-.4f,-.25f)}) {
                 VrmAvatarController.SolveArm(target,new Vector3(.3f,.1f,0),.32f,.28f,out var upper,out var lower);
                 Check(Vector3.Distance(upper*.32f+lower*.28f,target)<.001f,"IK reaches seated/head target "+target);

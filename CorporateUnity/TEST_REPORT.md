@@ -115,3 +115,12 @@ Acceptance criteria: both sides observed, tracked near-face wrist under 0.23 m w
 Artifacts: `Validation/corporate-camera-result.json`, `CorporateUnity/Validation/corporate-gesture-audit.json`, `Validation/corporate-gesture-before.json`, `Validation/corporate-live-player.log` (local ignored diagnostic files).
 
 Final rebuilt player regression after the real-camera fixes: 362 checks passed, exit 0, CORPORATE_RESULT=True (Validation/corporate-final-regression.log).
+
+## Adaptive smoothing — 2026-10-14
+
+One Euro filtering now uses the derivative between consecutive raw samples instead of displacement from the filtered output. Both 21-point hands receive a dedicated filter (minimum cutoff 1.5 Hz, speed gain 3); body uses 1.2 Hz and 0.65. UDP drainage applies filtering once to the newest valid packet, preventing artificial same-time filter updates for queued packets. A missing hand observation is held for up to 150 ms and then released; a gap over 400 ms resets filter history. Existing angular speed limits and direction smoothing remain active. Head-anchor blending uses SmoothStep across the 0.30-to-0.23 m proximity band, removing an abrupt target switch.
+
+Technique source: https://gery.casiez.net/1euro/ and the authors' CHI 2012 paper https://gery.casiez.net/publications/CHI2012-casiez.pdf. Implementation is local; no new paid runtime dependency.
+
+Synthetic tests: resting noise energy reduced at least 75%; a 20 cm intentional step reached within 2 cm of target in 500 ms; short loss holds, long loss releases. The previous real webcam gesture PASS predates this smoothing update. These benchmarks do not establish zero webcam jitter or measured real-world latency after the update.
+Native rebuilt player: 366 checks passed, exit 0, CORPORATE_RESULT=True. Log: Validation/corporate-smoothing.log.

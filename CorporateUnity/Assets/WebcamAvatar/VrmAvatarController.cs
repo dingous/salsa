@@ -144,8 +144,11 @@ namespace WebcamAvatar
                         Vector3 target=(P(p[w])-P(p[s]))*scale;
                         // Near-face gestures need a shared head anchor, because
                         // human and avatar neck/shoulder proportions differ.
-                        if(Valid(p,0)&&bones.ContainsKey(HumanBodyBones.Head)&&Vector3.Distance(P(p[w]),P(p[0]))<.23f)
-                            target=bones[HumanBodyBones.Head].position-bones[upper].position+(P(p[w])-P(p[0]))*scale;
+                        if(Valid(p,0)&&bones.ContainsKey(HumanBodyBones.Head)) {
+                            float blend=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.30f,.23f,Vector3.Distance(P(p[w]),P(p[0]))));
+                            var headTarget=bones[HumanBodyBones.Head].position-bones[upper].position+(P(p[w])-P(p[0]))*scale;
+                            target=Vector3.Lerp(target,headTarget,blend);
+                        }
                         float minimum=Mathf.Sqrt(lengthA*lengthA+lengthB*lengthB+2*lengthA*lengthB*Mathf.Cos(150*Mathf.Deg2Rad));
                         // Wrist direction becomes unstable at the shoulder.
                         // The visible elbow provides the stable bend direction.

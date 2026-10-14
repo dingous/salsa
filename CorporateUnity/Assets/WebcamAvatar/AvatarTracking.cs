@@ -69,6 +69,7 @@ namespace WebcamAvatar
         UdpClient socket;
         TrackingFrame frame;
         readonly AdaptivePoseFilter poseFilter=new AdaptivePoseFilter();
+        readonly AdaptivePoseFilter leftHandFilter=new AdaptivePoseFilter(21,1.5f,3f),rightHandFilter=new AdaptivePoseFilter(21,1.5f,3f);
         float received = -10;
         string error;
         readonly Dictionary<string, float> expressions = new Dictionary<string, float>();
@@ -157,10 +158,17 @@ namespace WebcamAvatar
         {
             if(socket!=null) try {
                 // Bounded drain: always prefer newest frame without blocking Unity.
+                TrackingFrame newest=null;
                 for(int i=0;i<64 && socket.Available>0;i++) {
                     IPEndPoint endpoint=null; var data=socket.Receive(ref endpoint);
                     var next=JsonUtility.FromJson<TrackingFrame>(Encoding.UTF8.GetString(data));
-                    if(Valid(next)) {if(next.pose)next.points=poseFilter.Process(next.points,Time.unscaledTime);else poseFilter.Reset();frame=next; received=Time.unscaledTime; error=null; }
+                    if(Valid(next))newest=next;
+                }
+                if(newest!=null){
+                    if(newest.pose)newest.points=poseFilter.Process(newest.points,Time.unscaledTime);else poseFilter.Reset();
+                    newest.leftHand=leftHandFilter.Process(newest.leftHand,Time.unscaledTime);
+                    newest.rightHand=rightHandFilter.Process(newest.rightHand,Time.unscaledTime);
+                    frame=newest;received=Time.unscaledTime;error=null;
                 }
             } catch(SocketException e) { if(e.SocketErrorCode!=SocketError.WouldBlock) error=e.Message; }
               catch(Exception e) { error=e.Message; }
