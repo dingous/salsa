@@ -132,9 +132,7 @@ namespace WebcamAvatar.Editor
         }
         public static void BuildWindows()
         {
-            CreateDemo.CreateStudio();Directory.CreateDirectory("Build");
-            var report=BuildPipeline.BuildPlayer(new[]{"Assets/Scenes/AvatarStudio.unity"},"Build/AvatarStudio.exe",BuildTarget.StandaloneWindows64,BuildOptions.None);
-            if(report.summary.result!=UnityEditor.Build.Reporting.BuildResult.Succeeded)throw new Exception("Build failed: "+report.summary.result);
+            WindowsExport.Build(Path.GetFullPath("Build/AvatarStudio.exe"));
         }
     }
 }

@@ -1,3 +1,3 @@
 @echo off
 cd /d "%~dp0"
-start "" "%~dp0Build\AvatarStudio.exe"
+start "" "%~dp0Build\Anterior\AvatarStudio.exe"

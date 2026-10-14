@@ -5,6 +5,15 @@ Avatar Studio com o humano corporativo. A versão anterior continua em
 `Iniciar Avatar Studio Anterior.cmd`. Na interface antiga, abra **Modelo VRM →
 Abrir MakeHuman / MPFB**. O projeto Unity novo está na pasta `CorporateUnity`.
 
+**Exportação Windows:** execute `Publicar Windows.cmd` para gerar
+`publish/Windows/AvatarStudio.exe` com o seletor **Avatar: Cartoon / Corporativo**.
+Distribua a pasta `publish/Windows` inteira, incluindo dados, modelos, DLLs,
+`D3D12`, `MonoBleedingEdge` e `Tracker`. O build Windows do projeto principal
+também usa esse exportador e `Build/AvatarStudio.exe` agora é a versão atualizada;
+a versão anterior fica em `Build/Anterior`. O ambiente de rastreamento copiado
+foi preparado nesta máquina; em outro Windows, prepare Python/Tracker com
+`Tracker/setup.ps1` e instale OBS Virtual Camera para transmissão às chamadas.
+
 **MakeHuman na web local:** recarregue a página e escolha **Modelo de avatar →
 MakeHuman / MPFB**. Seed-san continua disponível no mesmo seletor. A versão do
 domínio ainda precisa receber essa atualização; não foi publicada nesta etapa.

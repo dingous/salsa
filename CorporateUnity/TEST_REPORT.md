@@ -140,3 +140,7 @@ Windows header now switches Cartoon (procedural avatar) / Corporativo (realistic
 ## Cartoon VRM selector correction — 2026-10-14
 
 Cartoon now loads the bundled Seed-san VRM, replacing the prior procedural shortcut. Corporate loads MakeHuman. Header synchronizes by loaded model type rather than merely whether any VRM is active. Seed model and license included in Windows distribution. Updated player: 430 checks passed, exit 0; both model transitions verified. Log: Validation/corporate-cartoon-vrm.log.
+
+## Windows publication routing fix — 2026-10-14
+
+Root Unity Windows export now routes through Tools/publish-windows.ps1 and the CorporateUnity build. Root Build/AvatarStudio.exe and publish/Windows/AvatarStudio.exe include both models and the direct selector. Packaging copies every native build dependency, including D3D12, dstorage.dll and dstoragecore.dll; omission of these libraries prevented the initial packaged player from initializing. Model and UI assembly SHA256 checks detect stale/incomplete copies. The published executable was tested from publish/Windows: 430 synthetic checks passed, exit 0, CORPORATE_RESULT=True, including actual Cartoon/Corporate transitions. Root exporter scripts compiled successfully in the isolated Unity validation project. Existing legacy build preserved under Build/Anterior. The Python venv is prepared for this machine; a different machine must prepare Tracker dependencies and OBS separately. Artifacts: Validation/windows-published-e2e.log and Validation/windows-export-compile.log.
