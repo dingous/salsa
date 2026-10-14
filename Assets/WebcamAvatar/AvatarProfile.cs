@@ -19,6 +19,8 @@ namespace WebcamAvatar
         public float cheekVolume = 1, lipFullness = 1, eyeSize = 1, hairVolume = 1;
         public string source = "manual";
         public string vrmSource;
+        public bool vrmColors;
+        public bool corporate;
         public static Color ColorOf(string hex, Color fallback) => ColorUtility.TryParseHtmlString(hex, out var c) ? c : fallback;
         public void Sanitize()
         {

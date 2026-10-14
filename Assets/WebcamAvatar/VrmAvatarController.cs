@@ -22,6 +22,20 @@ namespace WebcamAvatar
         readonly Dictionary<HumanBodyBones,Quaternion> localRest=new Dictionary<HumanBodyBones,Quaternion>(),worldRest=new Dictionary<HumanBodyBones,Quaternion>();
         readonly Dictionary<HumanBodyBones,Vector3> directions=new Dictionary<HumanBodyBones,Vector3>();
         readonly Dictionary<HumanBodyBones,Quaternion> palmRest=new Dictionary<HumanBodyBones,Quaternion>();
+        readonly Dictionary<Material,Color> originalColors=new Dictionary<Material,Color>();
+        public void ApplyAppearance() {
+            if(Instance==null)return;
+            foreach(var pair in originalColors) {
+                var material=pair.Key;string name=material.name.ToLowerInvariant();Color color=pair.Value;
+                if(settings.Profile.vrmColors) {
+                    string hex=name.Contains("hair")?settings.Profile.hair:name.Contains("eye")&&!name.Contains("trans")?settings.Profile.eyes:name.Contains("huku")||name.Contains("cloth")||name.Contains("outfit")?settings.Profile.outfit:name.Contains("body_bake")||name.Contains("skin")?settings.Profile.skin:null;
+                    if(hex!=null)color=AvatarProfile.ColorOf(hex,color);
+                }
+                if(material.HasProperty("_Color"))material.SetColor("_Color",color);
+                if(material.HasProperty("_BaseColor"))material.SetColor("_BaseColor",color);
+            }
+        }
+        public void ResetAppearance(){settings.Profile.vrmColors=false;ApplyAppearance();}
         Vector3 origin;
         Quaternion facing;
         float clock;
@@ -67,7 +81,12 @@ namespace WebcamAvatar
                         if(normal.sqrMagnitude>.000001f)palmRest[wrist]=Quaternion.LookRotation(normal,up);
                     }
                 }
-                foreach(var renderer in Instance.GetComponentsInChildren<Renderer>(true))renderer.enabled=true;
+                originalColors.Clear();
+                foreach(var renderer in Instance.GetComponentsInChildren<Renderer>(true)) {
+                    renderer.enabled=!(Path.GetFullPath(path)==Path.GetFullPath(DefaultPath)&&renderer.name.StartsWith("robo_arm",StringComparison.OrdinalIgnoreCase));
+                    foreach(var material in renderer.materials)if(!originalColors.ContainsKey(material))originalColors[material]=material.HasProperty("_Color")?material.GetColor("_Color"):material.HasProperty("_BaseColor")?material.GetColor("_BaseColor"):Color.white;
+                }
+                ApplyAppearance();
                 settings.UseExternalModel(true);
             } finally {if(candidate!=null)Destroy(candidate.gameObject);Loading=false;}
         }
@@ -118,6 +137,7 @@ namespace WebcamAvatar
                     case ExpressionPreset.blinkRight:value=E("eyeBlinkRight");break;
                     case ExpressionPreset.custom:value=E(key.Name);break;
                 }
+                if(settings.Profile.corporate&&(key.Preset==ExpressionPreset.happy||key.Preset==ExpressionPreset.angry||key.Preset==ExpressionPreset.sad||key.Preset==ExpressionPreset.surprised))value*=.75f;
                 expression.SetWeight(key,Mathf.Clamp01(value));
             }
             float yaw=(E("eyeLookOutLeft")+E("eyeLookInRight")-E("eyeLookInLeft")-E("eyeLookOutRight"))*12;

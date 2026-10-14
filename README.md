@@ -120,3 +120,7 @@ O teste de geração usa, quando presente, `Validation/reference.png`: a foto p�
 O rastreamento de dedos usa [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/python). A topologia facial foi criada para este projeto; `Tracker/build_face_topology.py` permite recriar o asset original.
 
 SALSA não foi importado: nenhum pacote licenciado foi fornecido, e o fluxo implementado utiliza expressões obtidas diretamente da webcam. O nome do projeto foi preservado como marca do Studio; não há dependência da API SALSA.
+
+## Aparência do UniVRM no Unity
+
+Com um VRM ativo, as paletas de Aparência alteram os materiais de pele, cabelo, olhos e roupa do modelo, sem trocar para o avatar procedural. A coloração multiplica as texturas existentes: detalhes e desenhos da roupa permanecem. O modelo Seed-san possui materiais reconhecidos; outros modelos precisam usar nomes identificáveis (hair, eye, skin, cloth ou outfit). Em Modelo VRM, restaure as cores originais ou selecione apresentação Profissional/Corporativo. As cores e o perfil corporativo são guardados junto do avatar ao salvar na biblioteca. Penteado, óculos e proporções são definidos pela geometria do VRM.

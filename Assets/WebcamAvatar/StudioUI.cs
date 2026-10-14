@@ -206,7 +206,8 @@ namespace WebcamAvatar
             Button("Importar arquivo .vrm",parent,24,244,322,46,SelectVrm,true);
             Button("Usar Seed-san (demonstração)",parent,24,304,322,42,()=>{if(!busy)StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));});
             Button("Usar gerador procedural",parent,24,360,322,42,()=>{if(busy)return;Vrm.UseProcedural();avatar.Profile.vrmSource=null;RefreshModelStatus();SetStatus("Gerador procedural selecionado. Gere e personalize pela foto.");});
-            Label("Importe seu modelo cartoon ou realístico. Rosto, dedos e corpo usam o rig do arquivo VRM.",parent,24,425,322,58,13,muted);
+            Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
+            Button("Restaurar cores originais do VRM",parent,24,466,322,30,()=>{Vrm.ResetAppearance();SetStatus("Materiais originais restaurados.");});
             Label("Seed-san © VirtualCast, Inc.\nVRM Public License 1.0 · crédito obrigatório",parent,24,500,322,44,11,muted);
         }
         void SelectVrm()
@@ -224,7 +225,7 @@ namespace WebcamAvatar
             else {
                 avatar.Profile.vrmSource=Path.GetFullPath(path)==Path.GetFullPath(VrmAvatarController.DefaultPath)?"builtin:Seed-san":path;
                 avatar.Profile.name=Vrm.ModelName;nameField.text=previewName.text=Vrm.ModelName;
-                FrameVrm(false);SetStatus("Avatar VRM ativo. Inicie o rastreamento ou explore a prévia animada.");
+                SetVrmPresentation(avatar.Profile.corporate);FrameVrm(false);SetStatus("Avatar VRM ativo. Inicie o rastreamento ou explore a prévia animada.");
             }
             RefreshModelStatus();
         }
@@ -233,7 +234,7 @@ namespace WebcamAvatar
             bool active=Vrm.Active;
             modelStatus.text=active?$"{Vrm.ModelName}\n{Vrm.ExpressionCount} expressões VRM\nRig Humanoid · física de cabelo\nCréditos: {string.Join(", ",Vrm.Instance.Vrm.Meta.Authors)}":"Gerador procedural ativo";
             rigStatus.text=active?$"UNIVRM  /  {Vrm.ExpressionCount} EXPRESSÕES":"AVATAR PRO  /  RIG FACIAL 52";
-            styleDropdown.interactable=!active;
+            styleDropdown.interactable=!active;hairDropdown.interactable=!active;glassesToggle.interactable=!active;
             SetButtonLabel(generateButton,active?"Gerar pela foto (procedural)":"Gerar meu avatar  →");
         }
         void FrameVrm(bool full)
@@ -256,10 +257,10 @@ namespace WebcamAvatar
         {
             Label("02  /  SEU ESTILO",parent,24,24,322,22,11,purple,FontStyle.Bold);
             Label("Faça do seu jeito.",parent,24,60,322,32,24,white,FontStyle.Bold);
-            Swatches("Pele",parent,112,new[]{"#F7D2B5","#E9B38B","#D8956C","#B77750","#925A3A","#613A2B","#3C251F"},c=>Modify(p=>p.skin=c));
-            Swatches("Cabelo",parent,195,new[]{"#241F29","#503328","#916249","#D7AB62","#C35438","#C9C7D9","#9B75DF"},c=>Modify(p=>p.hair=c));
-            Swatches("Olhos",parent,278,new[]{"#382A24","#7C5430","#417E68","#438DB3","#747889","#AD78C6"},c=>Modify(p=>p.eyes=c));
-            Swatches("Roupa",parent,361,new[]{"#7279EC","#45A496","#D17D7D","#E4B65F","#F0EEE8","#353B50"},c=>Modify(p=>p.outfit=c));
+            Swatches("Pele",parent,112,new[]{"#F7D2B5","#E9B38B","#D8956C","#B77750","#925A3A","#613A2B","#3C251F"},c=>ModifyColor(p=>p.skin=c));
+            Swatches("Cabelo",parent,195,new[]{"#241F29","#503328","#916249","#D7AB62","#C35438","#C9C7D9","#9B75DF"},c=>ModifyColor(p=>p.hair=c));
+            Swatches("Olhos",parent,278,new[]{"#382A24","#7C5430","#417E68","#438DB3","#747889","#AD78C6"},c=>ModifyColor(p=>p.eyes=c));
+            Swatches("Roupa",parent,361,new[]{"#7279EC","#45A496","#D17D7D","#E4B65F","#F0EEE8","#353B50"},c=>ModifyColor(p=>p.outfit=c));
             hairDropdown=Dropdown(new[]{"Cabelo curto","Cabelo médio","Cabelo longo","Sem cabelo"},parent,24,450,210,40,i=>Modify(p=>p.hairStyle=i));
             glassesToggle=Toggle("Óculos",parent,247,454,100,false,v=>Modify(p=>p.glasses=v));
             Button("Ajustes avançados do rosto",parent,24,508,322,34,ShowAdvanced,true);
@@ -332,6 +333,24 @@ namespace WebcamAvatar
             responsive.LayoutAdvanced();
         }
         public void SetStatus(string message,bool isError=false) {status.text=message;status.color=isError?new Color(1,.58f,.57f):muted;}
+        void ModifyColor(Action<AvatarProfile> change)
+        {
+            if(busy){SetStatus("Aguarde o carregamento terminar.");return;}
+            if(!Vrm.Active){Modify(change);return;}
+            change(avatar.Profile);avatar.Profile.vrmColors=true;Vrm.ApplyAppearance();
+            SetStatus("Materiais do avatar UniVRM atualizados. Salve para guardar as cores.");
+        }
+        void SetVrmPresentation(bool corporate)
+        {
+            avatar.Profile.corporate=corporate;
+            if(backgroundRenderer!=null) {
+                if(backdrop==null)backdrop=backgroundRenderer.material;
+                backdrop.SetColor("_Top",corporate?new Color(.72f,.79f,.84f):new Color(.15f,.17f,.29f));
+                backdrop.SetColor("_Bottom",corporate?new Color(.32f,.40f,.49f):new Color(.04f,.05f,.09f));
+                backdrop.SetColor("_Glow",corporate?new Color(.55f,.65f,.72f):new Color(.24f,.20f,.43f));
+            }
+            SetFraming(0);SetStatus(corporate?"Apresentação corporativa ativa. A roupa vem do modelo VRM.":"Apresentação profissional ativa.");
+        }
         void Modify(Action<AvatarProfile> change)
         {
             if(Vrm.Active){SyncAppearance();SetStatus("Este modelo VRM tem aparência própria. Importe um cartoon ou realístico em Modelo VRM, ou selecione o gerador procedural para editar pela foto.");return;}
