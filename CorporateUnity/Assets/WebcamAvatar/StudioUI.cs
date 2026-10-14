@@ -293,7 +293,7 @@ namespace WebcamAvatar
             hairDropdown=Dropdown(new[]{"Cabelo curto","Cabelo médio","Cabelo longo","Sem cabelo"},parent,24,474,210,32,i=>Modify(p=>p.hairStyle=i));
             glassesToggle=Toggle("Óculos",parent,247,478,100,false,v=>Modify(p=>p.glasses=v));
             beardToggle=Toggle("Barba",parent,24,515,140,false,v=>Modify(p=>p.beard=v));
-            Button("Ajustes do rosto",parent,174,515,172,28,ShowAdvanced,true);
+            Button("Roupa e detalhes",parent,174,515,172,28,ShowAdvanced,true);
         }
         void BuildBroadcast(Transform parent)
         {
@@ -305,10 +305,11 @@ namespace WebcamAvatar
             virtualButton=Button("Ativar câmera virtual",parent,24,261,322,44,ToggleCamera);
             Dropdown(new[]{"Pose avançada: Full","Pose máxima: Heavy"},parent,24,316,322,32,i=>{poseQuality=i==0?"full":"heavy";if(trackerJob!=null){ToggleTracking();ToggleTracking();}});
             Toggle("Espelhar movimentos",parent,24,359,196,true,v=>tracking.mirror=v);
-            environmentDropdown=Dropdown(new[]{"Escritório","Estúdio","Chroma"},parent,221,359,125,32,SetEnvironment);
+            environmentDropdown=Dropdown(new[]{"Escritório","Estúdio","Chroma","Claro","Escuro","Minha imagem"},parent,221,359,125,32,SetEnvironment);
             Slider("Intensidade das expressões",parent,24,403,322,.5f,2,tracking.expressionGain,v=>tracking.expressionGain=v);
             Toggle("Ver enquadramento da webcam",parent,24,451,322,false,SetTrackingPreview);
-            Button("Como usar nas chamadas",parent,24,492,322,38,ShowCameraHelp);
+            Button("Enviar fundo",parent,24,492,154,38,()=>ImportDecoration(false));
+            Button("Ajuda nas chamadas",parent,190,492,156,38,ShowCameraHelp);
             cameraStatus=Label("Saída: 1280 × 720 · 30 fps",parent,24,528,322,20,11,muted);
         }
         void BuildPreview(Transform root)
@@ -342,7 +343,11 @@ namespace WebcamAvatar
                 Label("PERSONALIZAR O HUMANO",advancedPanel.transform,24,24,322,32,18,white,FontStyle.Bold);
                 Slider("Largura do rosto",advancedPanel.transform,24,100,322,.88f,1.12f,avatar.Profile.faceWidth,v=>{avatar.Profile.faceWidth=v;Vrm.ApplyAppearance();});
                 Slider("Largura do maxilar",advancedPanel.transform,24,190,322,.88f,1.12f,avatar.Profile.jawWidth,v=>{avatar.Profile.jawWidth=v;Vrm.ApplyAppearance();});
-                Label("As expressões continuam sobre estas proporções. Salve para guardar a identidade.",advancedPanel.transform,24,290,322,100,14,muted);
+                Dropdown(new[]{"Camiseta lisa","Camiseta listrada","Camiseta bicolor","Camiseta esportiva"},advancedPanel.transform,24,260,322,34,i=>{avatar.Profile.clothingStyle=6;avatar.Profile.shirtPattern=i;Vrm.ApplyAppearance();SyncAppearance();}).SetValueWithoutNotify(avatar.Profile.shirtPattern);
+                Button("Enviar logo para camiseta",advancedPanel.transform,24,308,322,36,()=>ImportDecoration(true));
+                Button("Remover logo",advancedPanel.transform,24,352,154,32,()=>{avatar.Profile.shirtLogoPath=null;Vrm.ApplyAppearance();});
+                Button("Enviar fundo",advancedPanel.transform,190,352,156,32,()=>ImportDecoration(false));
+                Label("PNG/JPEG. Logo PNG transparente recomendada. Salve para guardar.",advancedPanel.transform,24,396,322,48,12,muted);
                 Button("Concluir",advancedPanel.transform,24,460,322,44,()=>{Destroy(advancedPanel);advancedPanel=null;},true);
                 responsive.LayoutAdvanced();return;
             }
@@ -473,6 +478,8 @@ namespace WebcamAvatar
                 string folder=Path.Combine(Storage,"Avatars",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(folder);
                 if(Vrm.Active){File.Copy(Vrm.SourcePath,Path.Combine(folder,"model.vrm"));avatar.Profile.vrmSource="model.vrm";}
                 else avatar.Profile.vrmSource=null;
+                if(!string.IsNullOrEmpty(avatar.Profile.shirtLogoPath)&&File.Exists(avatar.Profile.shirtLogoPath)){File.Copy(avatar.Profile.shirtLogoPath,Path.Combine(folder,"logo.png"));avatar.Profile.shirtLogoPath=Path.Combine(folder,"logo.png");}
+                if(!string.IsNullOrEmpty(avatar.Profile.backgroundPath)&&File.Exists(avatar.Profile.backgroundPath)){File.Copy(avatar.Profile.backgroundPath,Path.Combine(folder,"background.png"));avatar.Profile.backgroundPath=Path.Combine(folder,"background.png");}
                 File.WriteAllText(Path.Combine(folder,"avatar.json"),JsonUtility.ToJson(avatar.Profile,true));
                 if(reference!=null)File.WriteAllBytes(Path.Combine(folder,"reference.png"),reference.EncodeToPNG());
                 previewName.text=avatar.Profile.name;RefreshLibrary();PlayerPrefs.SetString("LastAvatar",folder);PlayerPrefs.Save();
@@ -536,7 +543,35 @@ namespace WebcamAvatar
             backdrop.SetColor("_Bottom",value?Color.green:new Color(.04f,.05f,.09f));
             backdrop.SetColor("_Glow",value?Color.black:new Color(.24f,.20f,.43f));
         }
-        void SetEnvironment(int value){avatar.Profile.environment=Mathf.Clamp(value,0,2);SetGreenScreen(value==2);office.Show(value==0);SetStatus(value==2?"Fundo verde pronto para recorte no OBS.":value==0?"Escritório corporativo ativo.":"Estúdio ativo.");}
+        Texture2D customBackground;
+        void ImportDecoration(bool logo){
+            if(busy)return;
+            try {
+                string source=PhotoPicker.Pick();if(source==null)return;
+                var data=File.ReadAllBytes(source);if(data.Length>10*1024*1024)throw new IOException("Use uma imagem de até 10 MB.");
+                var image=new Texture2D(2,2,TextureFormat.RGBA32,false);
+                if(!image.LoadImage(data)){Destroy(image);throw new IOException("Use PNG ou JPEG válido.");}
+                if(image.width>4096||image.height>4096){Destroy(image);throw new IOException("Use uma imagem de até 4096 × 4096.");}
+                string folder=Path.Combine(Storage,"Decorations");Directory.CreateDirectory(folder);
+                string path=Path.Combine(folder,Guid.NewGuid().ToString("N")+".png");File.WriteAllBytes(path,image.EncodeToPNG());Destroy(image);
+                if(logo){avatar.Profile.shirtLogoPath=path;avatar.Profile.clothingStyle=6;Vrm.ApplyAppearance();SyncAppearance();SetStatus("Logo aplicada à camiseta. Salve para guardar.");}
+                else {avatar.Profile.backgroundPath=path;SetEnvironment(5);environmentDropdown.SetValueWithoutNotify(5);}
+            }catch(Exception e){SetStatus("Não foi possível importar: "+e.Message,true);}
+        }
+        void SetEnvironment(int value){
+            avatar.Profile.environment=Mathf.Clamp(value,0,5);SetGreenScreen(value==2);office.Show(value==0);
+            if(backdrop!=null){
+                backdrop.SetFloat("_UseImage",0);
+                if(value==3||value==4){var c=value==3?new Color(.87f,.90f,.93f):new Color(.035f,.04f,.06f);backdrop.SetColor("_Top",c);backdrop.SetColor("_Bottom",c);backdrop.SetColor("_Glow",Color.black);}
+                if(value==5){
+                    if(customBackground!=null)Destroy(customBackground);customBackground=null;
+                    string path=avatar.Profile.backgroundPath;
+                    if(!string.IsNullOrEmpty(path)&&File.Exists(path)){customBackground=new Texture2D(2,2);if(customBackground.LoadImage(File.ReadAllBytes(path))){backdrop.SetTexture("_Image",customBackground);backdrop.SetFloat("_UseImage",1);}}
+                    else {SetStatus("Escolha uma imagem para o fundo em Roupa e detalhes.");return;}
+                }
+            }
+            SetStatus("Fundo atualizado. Salve o avatar para guardar.");
+        }
         void SetFraming(int value)
         {
             if(Vrm.Active){FrameVrm(value==1);return;}
@@ -594,7 +629,7 @@ namespace WebcamAvatar
         void OnDestroy()
         {
             generator?.Dispose();trackerJob?.Dispose();broadcaster?.Stop();cameraJob?.Dispose();
-            if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
+            if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
             if(backdrop!=null)Destroy(backdrop);
             foreach(var texture in uiTextures)Destroy(texture);
         }

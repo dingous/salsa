@@ -12,6 +12,8 @@ namespace WebcamAvatar
         public string skin = "#DFA17B", hair = "#382C35", eyes = "#477A72", outfit = "#7279EC";
         public int hairStyle;
         public int clothingStyle;
+        public int shirtPattern;
+        public string shirtLogoPath, backgroundPath;
         public int style; // 0: cartoon; 1: realistic. Older profiles remain cartoon.
         public bool IsRealistic => style == 1;
         public float EffectiveEyeSize => eyeSize * (IsRealistic ? .78f : 1f);
@@ -35,7 +37,8 @@ namespace WebcamAvatar
             hairStyle = Mathf.Clamp(hairStyle,0,3);
             clothingStyle = Mathf.Clamp(clothingStyle,0,6);
             style = Mathf.Clamp(style,0,1);
-            environment=Mathf.Clamp(environment,0,2);
+            environment=Mathf.Clamp(environment,0,5);
+            shirtPattern=Mathf.Clamp(shirtPattern,0,3);
             skin=ValidColor(skin,"#DFA17B"); hair=ValidColor(hair,"#382C35"); eyes=ValidColor(eyes,"#477A72"); outfit=ValidColor(outfit,"#7279EC");
         }
         static float Clamp(float value,float min,float max) => float.IsNaN(value) || float.IsInfinity(value) ? 1 : Mathf.Clamp(value,min,max);

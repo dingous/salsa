@@ -89,11 +89,11 @@ namespace WebcamAvatar
             var vrm=ui.Vrm;var appearance=vrm.Appearance;
             Call(ui,"SelectAvatarMode",0);while(vrm.Loading)yield return null;yield return null;
             Check(vrm.Active&&!ui.avatar.Profile.corporate&&vrm.ModelName.Contains("Seed"),"Cartoon selector loads actual Seed-san VRM");
-            yield return VerifyRig(ui,"Cartoon");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--decorations-only")<0)yield return VerifyRig(ui,"Cartoon");
             Call(ui,"SelectAvatarMode",1);while(vrm.Loading)yield return null;yield return null;
             appearance=vrm.Appearance;
             Check(vrm.Active&&ui.avatar.Profile.corporate&&appearance.IsCorporateHuman,"Corporate selector restores actual MakeHuman");
-            yield return VerifyRig(ui,"Corporativo");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--decorations-only")<0)yield return VerifyRig(ui,"Corporativo");
             yield return new WaitForSecondsRealtime(.5f);
             Check(appearance!=null && appearance.IsCorporateHuman,"Actual MakeHuman identity morphs available");
             Check(vrm.ExpressionCount>=67,"52 ARKit expressions and 15 visemes");
@@ -104,7 +104,25 @@ namespace WebcamAvatar
                 var wardrobeProfile=JsonUtility.FromJson<AvatarProfile>(JsonUtility.ToJson(ui.avatar.Profile));wardrobeProfile.Sanitize();Check(wardrobeProfile.clothingStyle==outfit,"Clothing selection profile roundtrip "+outfit);
                 yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(root,"wardrobe-"+outfit+".png")));
             }
+            var logoTexture=new Texture2D(64,32,TextureFormat.RGBA32,false);
+            var logoPixels=new Color[64*32];for(int i=0;i<logoPixels.Length;i++)logoPixels[i]=(i%64>8&&i%64<56)?Color.red:Color.clear;
+            logoTexture.SetPixels(logoPixels);logoTexture.Apply();string logoPath=Path.Combine(root,"shirt-logo-fixture.png");File.WriteAllBytes(logoPath,logoTexture.EncodeToPNG());Destroy(logoTexture);
+            ui.avatar.Profile.clothingStyle=6;ui.avatar.Profile.shirtLogoPath=logoPath;
+            for(int pattern=0;pattern<4;pattern++){
+                ui.avatar.Profile.shirtPattern=pattern;vrm.ApplyAppearance();
+                bool printed=false;foreach(var mesh in vrm.Instance.GetComponentsInChildren<SkinnedMeshRenderer>())if(mesh.enabled&&mesh.name.ToLowerInvariant().Contains("male_casualsuit06"))foreach(var material in mesh.sharedMaterials)printed|=material.shader.name=="CorporateAvatar/ShirtPrint"&&material.GetFloat("_Pattern")==pattern&&material.GetFloat("_HasLogo")==1&&material.GetTexture("_Logo")!=null;
+                Check(printed,"Shirt pattern and uploaded logo bound "+pattern);
+            }
+            Call(ui,"FrameVrm",false);Call(ui,"ShowAdvanced");
+            yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(root,"shirt-logo-customization.png")));
+            Call(ui,"ShowPage",2);
+            ui.avatar.Profile.backgroundPath=logoPath;Call(ui,"SetEnvironment",5);
+            Check(ui.avatar.Profile.environment==5,"Uploaded background selected");
+            var decorationProfile=JsonUtility.FromJson<AvatarProfile>(JsonUtility.ToJson(ui.avatar.Profile));decorationProfile.Sanitize();
+            Check(decorationProfile.shirtPattern==3&&decorationProfile.backgroundPath==logoPath&&decorationProfile.shirtLogoPath==logoPath,"Decoration profile roundtrip");
+            ui.avatar.Profile.shirtLogoPath=null;ui.avatar.Profile.shirtPattern=0;Call(ui,"SetEnvironment",0);
             ui.avatar.Profile.clothingStyle=0;vrm.ApplyAppearance();Call(ui,"SyncAppearance");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--decorations-only")>=0){Debug.Log("CORPORATE_DECORATIONS_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;}
             Call(ui,"ShowPage",3);
             yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(root,"corporate-realistic.png")));
             foreach(var mesh in vrm.Instance.GetComponentsInChildren<Renderer>())foreach(var material in mesh.sharedMaterials)
