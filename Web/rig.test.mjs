@@ -7,7 +7,7 @@ scene.add(shoulder);shoulder.add(upper);upper.add(helper,lower);lower.add(hand);
 upper.position.set(.2,1,0);helper.position.set(0,.01,0);lower.position.set(.4,0,0);hand.position.set(.3,0,0);
 const bones={leftShoulder:shoulder,leftUpperArm:upper,leftLowerArm:lower,leftHand:hand};
 const vrm={scene,humanoid:{humanBones:bones,getNormalizedBoneNode:k=>bones[k]},update:()=>{}};
-const rig=new AvatarRig(vrm),positions=Object.values(bones).map(b=>b.position.clone());
+const rig=new AvatarRig(vrm);rig.setMirror(false);const positions=Object.values(bones).map(b=>b.position.clone());
 assert.ok(rig.directions.get('leftUpperArm').angleTo(new THREE.Vector3(1,0,0))<1e-6,'Use elbow, not a helper child, as the arm direction');
 for(let i=0;i<90;i++)rig.update(null,1/30);
 const before=upper.quaternion.clone(),points=Array.from({length:33},()=>({x:0,y:0,z:0,confidence:0}));

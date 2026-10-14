@@ -1,4 +1,7 @@
+import {BrowserTracker} from './browser-tracker.js';
+const hosted=!['127.0.0.1','localhost'].includes(location.hostname)||new URLSearchParams(location.search).get('mode')==='browser';
 const $=id=>document.getElementById(id),status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
+const browserTracker=new BrowserTracker(frame=>{worker?.postMessage({type:'trackingFrame',frame});},error=>{tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=false;status(error,true);},text=>status(text));
 const client=crypto.randomUUID();
 let token='',tracking=false,virtual=false,cameraSession=null,detected={face:false,pose:false,hands:0},worker,ready=false,epoch=0,pending=false,latest=null,reconnecting=null,bridgeWasOffline=false;
 $('virtual').disabled=true;
@@ -32,6 +35,7 @@ function presentation(value,save=true) {
   if(save)try{localStorage.setItem('avatarPresentation',value);}catch{}
 }
 $('presentation').onchange=()=>presentation($('presentation').value);
+$('mirror').onchange=()=>send('mirror',$('mirror').checked);
 function applyState(result) {
   latest=result;
   const foreignTracker=result.trackerOwner&&result.trackerOwner!==client,foreignCamera=result.cameraOwner&&result.cameraOwner!==client;
@@ -59,7 +63,14 @@ $('modelFile').addEventListener('change',async event=>{const file=event.target.f
 $('defaultModel').onclick=()=>{status('Carregando Seed-san…');worker?.postMessage({type:'load',source:new URL('assets/Seed-san.vrm',location.href).href});};
 $('framing').onchange=()=>send('framing',$('framing').value);$('background').onchange=()=>send('background',$('background').value);$('demo').onchange=()=>send('demo',$('demo').checked);
 $('calibrate').onclick=()=>{if(!tracking){status('Inicie o rastreamento antes de calibrar.');return;}send('calibrate');status('Posição neutra calibrada.');};
-$('track').onclick=()=>operation('tracking/'+(tracking?'stop':'start'),{camera:Number($('camera').value)},tracking?'Rastreamento encerrado. A webcam foi liberada.':'Abrindo a webcam física para rastrear rosto, mãos e corpo…');
+$('track').onclick=async()=>{
+  if(!hosted)return operation('tracking/'+(tracking?'stop':'start'),{camera:Number($('camera').value)},tracking?'Rastreamento encerrado. A webcam foi liberada.':'Abrindo a webcam física para rastrear rosto, mãos e corpo…');
+  if(tracking){browserTracker.stop();tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=false;$('trackingState').textContent='Webcam desligada';status('Rastreamento encerrado.');return;}
+  $('track').disabled=true;status('Abrindo a webcam e preparando o rastreamento local no navegador…');
+  try{await browserTracker.start(Number($('camera').value));tracking=true;$('track').textContent='Parar rastreamento';$('camera').disabled=true;$('demo').checked=false;send('demo',false);status('Rastreamento ativo. Os frames da webcam são processados no seu navegador.');}
+  catch(error){browserTracker.stop();status(error.name==='NotAllowedError'?'Permita o acesso à webcam para iniciar o rastreamento.':error.message,true);}
+  finally{$('track').disabled=false;}
+};
 $('virtual').onclick=()=>operation('camera/'+(virtual?'stop':'start'),{},virtual?'Câmera virtual desligada.':'Câmera virtual pronta. No Teams, escolha OBS Virtual Camera.');
 $('clean').onclick=()=>document.body.classList.add('clean');window.addEventListener('keydown',event=>{if(event.key==='Escape')document.body.classList.remove('clean');});$('avatar').addEventListener('dblclick',()=>document.body.classList.remove('clean'));
 async function pollStatus() {
@@ -73,22 +84,27 @@ async function pollStatus() {
 async function initialize() {
   try {
     if(!$('avatar').transferControlToOffscreen)throw new Error('Use uma versão atual do Chrome ou Edge com suporte a OffscreenCanvas.');
-    await handshake();worker=new Worker('render-worker.js',{type:'module'});
-    worker.onerror=event=>{ready=false;virtual=false;send('virtual',false);$('virtual').disabled=true;status('Erro na renderização: '+(event.message||'Não foi possível carregar o renderer.'),true);api('camera/stop',{}).catch(()=>{});};
+    if(!hosted)await handshake();worker=new Worker('render-worker.js',{type:'module'});
+    worker.onerror=event=>{ready=false;virtual=false;send('virtual',false);if(!hosted){$('virtual').disabled=true;api('camera/stop',{}).catch(()=>{});}else browserTracker.stop();status('Erro na renderização: '+(event.message||'Não foi possível carregar o renderer.'),true);};
     worker.onmessage=({data})=>{
-      if(data.type==='loaded'){ready=true;$('modelName').textContent=data.name;$('rigInfo').textContent=`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status('Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');}
-      else if(data.type==='tracking')detected=data;
+      if(data.type==='loaded'){ready=true;$('modelName').textContent=data.name;$('rigInfo').textContent=`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status(hosted?'Avatar carregado. Inicie o rastreamento pela webcam.':'Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');}
+      else if(data.type==='tracking'){detected=data;if(hosted)$('trackingState').textContent=tracking?`${data.face?'Rosto detectado':'Sem rosto'} · ${data.pose?'Corpo detectado':'Corpo fora do quadro'} · ${data.hands} mãos`:'Webcam desligada';}
       else if(data.type==='cameraError'){virtual=false;send('virtual',false);operation('camera/stop',{},data.error);}
-      else if(data.type==='renderError'){ready=false;$('virtual').disabled=true;operation('camera/stop',{},'Renderização interrompida: '+data.error);}
+      else if(data.type==='renderError'){ready=false;if(!hosted){$('virtual').disabled=true;operation('camera/stop',{},'Renderização interrompida: '+data.error);}else{browserTracker.stop();status('Renderização interrompida: '+data.error,true);}}
       else if(data.type==='error')status(data.error,true);
       else if(data.type==='cameraRetrying')status('Falha temporária no envio. Reconectando o vídeo do avatar…');
       else if(data.type==='cameraRecovered')status('Transmissão do avatar recuperada.');
       else if(data.type==='authExpired'){if(!reconnecting)reconnecting=handshake().catch(error=>status(error.message,true)).finally(()=>reconnecting=null);}
     };
-    const canvas=$('avatar').transferControlToOffscreen();worker.postMessage({type:'init',token,client,canvas},[canvas]);
+    const canvas=$('avatar').transferControlToOffscreen();worker.postMessage({type:'init',token,client,canvas,hosted},[canvas]);
     let preferred='professional';try{preferred=localStorage.getItem('avatarPresentation')||preferred;}catch{}
-    presentation(preferred,false);pollStatus();
+    presentation(preferred,false);if(!hosted)pollStatus();
   }catch(error){status('Não foi possível iniciar o studio: '+error.message,true);}
 }
-window.addEventListener('pagehide',()=>{worker?.terminate();for(const operation of ['tracking/stop','camera/stop'])fetch('/api/'+operation,{method:'POST',keepalive:true,headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});});
+if(hosted){
+  document.querySelector('.brand small').textContent='WEB · NO NAVEGADOR';
+  document.querySelector('.call-controls').innerHTML='<span class="eyebrow">SEU AVATAR NAS CHAMADAS</span><h2>Conecte ao Teams.</h2><p>O rastreamento funciona neste navegador. Para criar uma câmera do sistema, use uma das opções abaixo.</p><a class="file-button" href="http://127.0.0.1:8765/" target="_blank" rel="noreferrer">Abrir aplicativo local</a><p>Requer Avatar Studio instalado e aberto no computador. A versão local envia diretamente para OBS Virtual Camera.</p><hr><h2>Usar com OBS</h2><ol><li>Inicie a webcam nesta página.</li><li>Ative Tela limpa e capture esta janela no OBS.</li><li>No OBS, inicie a câmera virtual. No Teams, selecione OBS Virtual Camera.</li></ol><p class="tip">Esc ou duplo clique no avatar volta ao Studio. Esta página não instala um driver de câmera.</p><a href="https://github.com/dingous/salsa" target="_blank" rel="noreferrer">Projeto e instalação ↗</a>';
+  document.querySelector('.intro p').textContent='Anime seu avatar VRM com rosto, corpo e mãos, diretamente no navegador.';
+}
+window.addEventListener('pagehide',()=>{browserTracker.stop();worker?.terminate();if(!hosted)for(const operation of ['tracking/stop','camera/stop'])fetch('/api/'+operation,{method:'POST',keepalive:true,headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});});
 initialize();

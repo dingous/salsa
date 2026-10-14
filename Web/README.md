@@ -12,7 +12,7 @@ A renderização e o envio usam OffscreenCanvas em um Web Worker para continuar 
 
 O OBS Studio precisa estar instalado para registrar o dispositivo no Windows, mas não precisa ficar aberto. Deixe a câmera virtual do próprio OBS desligada quando esta ponte estiver ativa: só um produtor pode usar o mesmo driver. O OBS 32.2.2 foi instalado e o driver respondeu nesta máquina.
 
-Esta é uma aplicação web **local**, com uma ponte Python no Windows. Um site sozinho não registra um dispositivo de câmera no sistema. Para hospedar a interface remotamente, seria necessário empacotar e distribuir a ponte com autenticação e conexão próprias; a versão atual escuta apenas 127.0.0.1 e rejeita chamadas de outras origens.
+A versão local usa a ponte Python no Windows. A versão hospedada usa MediaPipe Tasks Vision 0.10.21 (Apache-2.0) em um worker, com modelos e WASM locais ao site. Frames da webcam não são enviados ao servidor. Um site não registra um dispositivo de câmera no sistema: para Teams, use Tela limpa e captura de janela no OBS ou abra o aplicativo local. A ponte continua escutando somente 127.0.0.1 e rejeitando outras origens.
 
 Bibliotecas locais: Three.js 0.186.1 e @pixiv/three-vrm 3.5.5 (MIT). O renderer web usa three-vrm, enquanto o projeto Unity usa UniVRM; ambos importam modelos VRM. As importações de Three.js em três-vrm e nos utilitários GLTF foram ajustadas para caminhos locais, pois Web Workers não herdam import maps. Os pacotes originais e suas licenças ficam em vendor. Seed-san © VirtualCast, Inc., VRM Public License 1.0; origem e licença em assets.
 
@@ -25,3 +25,9 @@ Cada aba controla seus próprios dispositivos. Uma segunda aba exibe “em uso e
 Escolha **Profissional · Studio** ou **Corporativo · Reuniões**. O perfil corporativo aplica um cenário de escritório abstrato, luz neutra, enquadramento em busto e emoções moderadas, preservando articulação da boca e piscadas. A escolha é lembrada neste navegador. Cenário e enquadramento podem ser ajustados depois. O perfil não altera a roupa do arquivo VRM; importe um avatar com traje social para uma aparência corporativa completa.
 
 Testes: `node Web/rig.test.mjs`, `node Web/tracking-utils.test.mjs` e `Tracker/.venv/Scripts/python.exe Web/test_server.py`.
+
+## Sentido dos movimentos e E2E
+
+**Espelhar movimentos** troca o lado anatômico de destino e reflete os pontos de forma consistente para braços, pernas, mãos, expressões e cabeça. Desligado preserva o lado anatômico. O checkbox indica espelho estilo selfie, não inversão acidental.
+
+`/e2e-motion.html` executa 42 verificações usando o modelo Seed-san real: braços e antebraços, avanço, pernas, tronco, cabeça, lateralidade das piscadas, boca, cinco dedos, ligações do esqueleto e retorno após perda de sinal/calibração. `/e2e-browser-tracker.html` verifica o carregamento de WASM/modelos e inferência sem falsas detecções em imagem vazia. Esses testes determinísticos não garantem precisão perfeita de uma webcam em todas as condições. Os arquivos de teste não fazem parte do pacote público.

@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY web/ /app/mvc/wwwroot/Games/Avatar/
+COPY patch-nginx.cjs /tmp/avatar-patch-nginx.cjs
+RUN node /tmp/avatar-patch-nginx.cjs && nginx -t && rm /tmp/avatar-patch-nginx.cjs

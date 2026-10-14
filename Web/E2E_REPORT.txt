@@ -76,3 +76,17 @@ Limites
 - O navegador de teste manteve document.visibilityState=visible; não houve
   validação de aba realmente oculta, aba descartada ou computador suspenso.
 - Os testes não demonstram precisão de 100% em gestos e expressões humanos.
+
+
+Movement verification and public-browser release, 2026-10-14
+--------------------------------------------------------
+PASS: 42 deterministic checks against real Seed-san normalized humanoid: both arm sides, elbows, forward reach, leg side, torso facing and leaning, head conversion, unilateral blink, mouth, all five fingers per source hand, attached joints, signal-loss recovery and calibrated neutral recovery; mirrored and anatomical modes.
+Fixed: reflected X without swapping limb destinations; inconsistent head coordinate conjugation; VRM1 thumb metacarpal mapping; calibrated head drift after face loss.
+PASS: native OBS receiver 1280x720, 29.88 fps, browser input 22.0 fps, animated maxMotion 0.149, current frame age 46ms. Animation is a controlled demo, not a claim that the user performed every gesture.
+PASS: asymmetric native color pattern verifies horizontal/vertical orientation and BGR channels; stale-video blackout; stop/restart; old-session rejection.
+PASS: 14 backend regressions, 6 hand-detection cases, 3 unmirrored hand-assignment cases, rig motion-speed/attachment/loss regressions.
+PASS: MediaPipe browser worker loads three local models/WASM and performs inference on empty image with no false detections.
+PASS: nginx multiple-server route test; existing API server untouched.
+LIMIT: this Codex in-app browser did not complete getUserMedia permission; no Chrome/Edge connector was available. Live browser permission/camera flow needs Chrome/Edge user validation. The real native webcam process was exercised; no face or pose was visible during this test.
+LIMIT: no actual Teams meeting was entered. Monocular pose accuracy is not guaranteed 100% for occluded joints or all lighting conditions.
+Public site uses browser tracking; native virtual-camera registration requires OBS window capture or the local Avatar Studio.

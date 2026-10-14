@@ -7,6 +7,7 @@ import {countHands} from './tracking-utils.js';
 let renderer,scene,camera,loader,vrm,rig,token='',client='',cameraSession=null,frame=null,demo=false,virtual=false,sending=false,framingMode='bust',elapsed=0,previous=performance.now(),version=0,renderFailed=false;
 let failedSince=0,nextSend=0;
 let presentationMode='professional',keyLight,fillLight;
+let mirrored=true,hosted=false;
 function backdrop(value) {
   if(scene.background?.isTexture)scene.background.dispose();
   if(value!=='corporate'){scene.background=new THREE.Color({studio:'#292646',green:'#00ff00',dark:'#10131f'}[value]||'#292646');return;}
@@ -41,7 +42,7 @@ async function load(source) {
     candidate.scene.updateMatrixWorld(true);
     const bounds=new THREE.Box3().setFromObject(candidate.scene),height=bounds.getSize(new THREE.Vector3()).y;if(height<.1)throw new Error('O modelo não contém uma malha visível.');
     candidate.scene.scale.multiplyScalar(2.1/height);candidate.scene.position.y=-bounds.min.y*2.1/height;candidate.scene.updateMatrixWorld(true);
-    if(vrm){scene.remove(vrm.scene);VRMUtils.deepDispose(vrm.scene);}vrm=candidate;scene.add(vrm.scene);rig=new AvatarRig(vrm);rig.expressionScale=presentationMode==='corporate'?.75:1;framing();
+    if(vrm){scene.remove(vrm.scene);VRMUtils.deepDispose(vrm.scene);}vrm=candidate;scene.add(vrm.scene);rig=new AvatarRig(vrm);rig.setMirror(mirrored);rig.expressionScale=presentationMode==='corporate'?.75:1;framing();
     message('loaded',{name:vrm.meta?.name||vrm.meta?.title||'Meu avatar VRM',authors:vrm.meta?.authors?.join(', ')||vrm.meta?.author||'Autor informado no arquivo',expressions:vrm.expressionManager?.expressions.length||0});
   }catch(error){if(candidate&&candidate!==vrm)VRMUtils.deepDispose(candidate.scene);message('error',{error:error.message});}
 }
@@ -73,13 +74,15 @@ self.onmessage=async event=>{
   const data=event.data;
   if(data.type==='init') {
     try {
-      token=data.token;client=data.client;scene=new THREE.Scene();scene.background=new THREE.Color('#292646');camera=new THREE.PerspectiveCamera(30,1280/720,.1,20);
+      token=data.token;client=data.client;hosted=!!data.hosted;scene=new THREE.Scene();scene.background=new THREE.Color('#292646');camera=new THREE.PerspectiveCamera(30,1280/720,.1,20);
       renderer=new THREE.WebGLRenderer({canvas:data.canvas,antialias:true,preserveDrawingBuffer:true});renderer.setSize(1280,720,false);renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;
       fillLight=new THREE.HemisphereLight('#fff1df','#8995c0',2);scene.add(fillLight);keyLight=new THREE.DirectionalLight('#fff5e8',2);keyLight.position.set(-2,3,3);scene.add(keyLight);
-      loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser));await load(new URL('assets/Seed-san.vrm',self.location.href).href);poll();setInterval(tick,1000/30);
+      loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser));await load(new URL('assets/Seed-san.vrm',self.location.href).href);if(!hosted)poll();setInterval(tick,1000/30);
     }catch(error){message('error',{error:error.message});}
   }else if(data.type==='load')load(data.source);
   else if(data.type==='demo')demo=data.value;
+  else if(data.type==='mirror'){mirrored=!!data.value;rig?.setMirror(mirrored);}
+  else if(data.type==='trackingFrame'){frame=data.frame;message('tracking',{face:!!frame?.face,pose:!!frame?.pose,hands:countHands(frame)});}
   else if(data.type==='virtual'){if(cameraSession!==(data.session||null)){failedSince=0;nextSend=0;}virtual=data.value;cameraSession=data.session||null;}
   else if(data.type==='token'){token=data.token;virtual=false;cameraSession=null;}
   else if(data.type==='framing'){framingMode=data.value;framing();}

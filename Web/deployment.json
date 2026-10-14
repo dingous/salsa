@@ -1,0 +1,15 @@
+{
+  "app": "AvatarStudio",
+  "release": "2026-10-14-movement-e2e",
+  "tracking": "browser-local",
+  "motionChecks": 42,
+  "files": {
+    "index.html": "4fc5ab1cd337a00a37cd62f237d5bae960a7735a22c40195b039c02db36c0a2e",
+    "studio.css": "09b8672c338602dec21e089e7194be108abbc4c2b8bb257a5158689e59583b1e",
+    "studio.js": "1d0d13c54003c1c3c41661ff0a0fccd037f0a9b78d5fbebca5fdfbd0c7af63c2",
+    "rig.js": "ab3c2c23fd07466e6300be427de4ef286a98af19cda5530580877cd88630bf06",
+    "render-worker.js": "65837fe46f0d36277d8084e6f483e905f1c040e66c6dd0c61e98df4414eb0251",
+    "browser-tracker.js": "13d4291262378149e822df406c9c6e132ff3cd3a08d7a82a234412ee4f6270d0",
+    "browser-tracking-worker.js": "e7e393d124e74238645e30b6e52d323d81180a2f8a491c100b82a9b318ca5448"
+  }
+}

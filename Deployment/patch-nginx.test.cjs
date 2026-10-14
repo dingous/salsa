@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
+const source=fs.readFileSync(__dirname+'/patch-nginx.cjs','utf8');
+const other='server { listen 8080; server_name api.example; location / { proxy_pass http://api; } }';
+const mvc='server { listen 80; server_name dingous.com.br www.dingous.com.br; location / { proxy_pass http://chattrade_mvc; } }';
+const files=new Map([['/etc/nginx/nginx.conf','http { '+other+'\n'+mvc+' }'],['/app/deployment-fingerprint','old']]);
+const required=['index.html','studio.js','render-worker.js','browser-tracking-worker.js','assets/Seed-san.vrm','assets/face.task','assets/pose.task','assets/hand.task','vendor/mediapipe/package/vision_bundle.mjs'];
+for(const name of required)files.set('/app/mvc/wwwroot/Games/Avatar/'+name,'asset');
+const mock={existsSync:p=>files.has(p),readFileSync:p=>files.get(p),writeFileSync:(p,v)=>files.set(p,v),readdirSync:()=>[],statSync:()=>({isFile:()=>true,isDirectory:()=>false})};
+vm.runInNewContext(source,{require:name=>name==='fs'?mock:name==='path'?require('path').posix:require(name),console:{log:()=>{}}});
+const patched=files.get('/etc/nginx/nginx.conf');
+assert.ok(patched.includes(other),'The API server must remain unchanged');
+assert.equal((patched.match(/location \^~ \/Games\/Avatar\//g)||[]).length,1);
+assert.ok(patched.indexOf('server_name dingous.com.br')<patched.indexOf('location ^~ /Games/Avatar/'));
+assert.ok(patched.includes('proxy_pass http://chattrade_mvc;'));
+assert.ok(patched.includes('application/javascript js mjs;'));
+assert.notEqual(files.get('/app/deployment-fingerprint'),'old');
+console.log('Multi-server nginx routing and existing service preservation passed');
