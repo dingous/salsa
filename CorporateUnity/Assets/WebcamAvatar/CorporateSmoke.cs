@@ -71,6 +71,9 @@ namespace WebcamAvatar
                 Debug.Log("CORPORATE_LIVE_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
             }
             var vrm=ui.Vrm;var appearance=vrm.Appearance;
+            var existingModel=vrm.Instance;
+            Call(ui,"SelectAvatarMode",0);Check(!vrm.Active&&!ui.avatar.Profile.corporate,"Cartoon selector activates procedural avatar");
+            Call(ui,"SelectAvatarMode",1);Check(vrm.Active&&ui.avatar.Profile.corporate&&vrm.Instance==existingModel,"Corporate selector restores MakeHuman without reload");
             yield return new WaitForSecondsRealtime(.5f);
             Check(appearance!=null && appearance.IsCorporateHuman,"Actual MakeHuman identity morphs available");
             Check(vrm.ExpressionCount>=67,"52 ARKit expressions and 15 visemes");

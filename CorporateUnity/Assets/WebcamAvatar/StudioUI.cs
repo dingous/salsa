@@ -179,7 +179,7 @@ namespace WebcamAvatar
             Label("AVATAR STUDIO · UNITY",root.transform,116,68,180,20,11,muted,FontStyle.Bold);
             var local=Panel("Local badge",root.transform,1220,40,104,30,new Color(.085f,.18f,.16f));Label("100% LOCAL",local.transform,0,0,104,30,10,green,FontStyle.Bold).alignment=TextAnchor.MiddleCenter;
             for(int i=0;i<4;i++){int index=i;navigation[i]=Button(new[]{"Criar avatar","Aparência","Transmissão","Modelo VRM"}[i],root.transform,400+i*132,40,124,40,()=>ShowPage(index));}
-            styleDropdown=Dropdown(new[]{"Estilo: Estilizado 3D","Estilo: Realista"},root.transform,982,40,220,40,i=>Modify(p=>p.style=i));
+            styleDropdown=Dropdown(new[]{"Avatar: Cartoon","Avatar: Corporativo"},root.transform,982,40,220,40,SelectAvatarMode);
             styleDropdown.SetValueWithoutNotify(avatar.Profile.style);
             Label("Crie sua versão digital.",root.transform,116,128,1040,54,38,white,FontStyle.Bold);
             Label("Seu avatar humano. Sua voz. Reuniões com presença e privacidade.",root.transform,118,192,1060,30,17,muted);
@@ -223,6 +223,22 @@ namespace WebcamAvatar
             try{string path=PhotoPicker.Pick(true);if(path!=null)StartCoroutine(LoadVrmRoutine(path));}
             catch(Exception e){SetStatus("Não foi possível selecionar o modelo: "+e.Message,true);}
         }
+        void SelectAvatarMode(int mode)
+        {
+            if(busy){styleDropdown.SetValueWithoutNotify(Vrm.Active?1:0);return;}
+            if(mode==0){
+                Vrm.UseProcedural();avatar.Profile.vrmSource=null;avatar.Profile.style=0;
+                SetVrmPresentation(false);SyncAppearance();RefreshModelStatus();
+                SetStatus("Avatar Cartoon ativo. A webcam e a transmissão continuam disponíveis.");
+            }else{
+                avatar.Profile.style=1;avatar.Profile.corporate=true;
+                if(Vrm.Instance!=null&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman){
+                    Vrm.UseVrm();avatar.Profile.vrmSource="builtin:CorporateHuman";Vrm.ApplyAppearance();
+                    SetVrmPresentation(true);SyncAppearance();RefreshModelStatus();
+                    SetStatus("Avatar Corporativo ativo. Escolha a roupa na aba Aparência.");
+                }else StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));
+            }
+        }
         public IEnumerator LoadVrmRoutine(string path)
         {
             if(busy)yield break;busy=true;SetStatus("Carregando malhas, texturas, expressões e rig do avatar VRM…");
@@ -244,7 +260,7 @@ namespace WebcamAvatar
             modelStatus.text=active?$"{Vrm.ModelName}\n{facialInfo}\nRig Humanoid · mãos e dedos\nCréditos: {string.Join(", ",Vrm.Instance.Vrm.Meta.Authors)}":"Gerador procedural ativo";
             rigStatus.text=active?"UNIVRM  /  ROSTO · CORPO · MÃOS":"AVATAR PRO  /  RIG FACIAL 52";
             bool editable=!active || Vrm.Appearance!=null && Vrm.Appearance.IsCorporateHuman;
-            styleDropdown.interactable=editable;hairDropdown.interactable=editable;glassesToggle.interactable=editable;beardToggle.interactable=editable && active;
+            styleDropdown.interactable=!busy;styleDropdown.SetValueWithoutNotify(active?1:0);hairDropdown.interactable=editable;glassesToggle.interactable=editable;beardToggle.interactable=editable && active;
             clothingDropdown.interactable=active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman;
             SetButtonLabel(generateButton,"Personalizar pela foto  →");
         }
@@ -502,7 +518,7 @@ namespace WebcamAvatar
             Application.OpenURL("https://obsproject.com/kb/virtual-camera-guide");
         }
         IEnumerator LoadSavedModel(string path,string identityName){yield return StartCoroutine(LoadVrmRoutine(path));avatar.Profile.name=identityName;previewName.text=nameField.text=identityName;SyncAppearance();}
-        void SyncAppearance(){styleDropdown.SetValueWithoutNotify(avatar.Profile.style);hairDropdown.SetValueWithoutNotify(avatar.Profile.hairStyle);clothingDropdown.SetValueWithoutNotify(avatar.Profile.clothingStyle);glassesToggle.SetIsOnWithoutNotify(avatar.Profile.glasses);beardToggle.SetIsOnWithoutNotify(avatar.Profile.beard);}
+        void SyncAppearance(){styleDropdown.SetValueWithoutNotify(Vrm.Active?1:0);hairDropdown.SetValueWithoutNotify(avatar.Profile.hairStyle);clothingDropdown.SetValueWithoutNotify(avatar.Profile.clothingStyle);glassesToggle.SetIsOnWithoutNotify(avatar.Profile.glasses);beardToggle.SetIsOnWithoutNotify(avatar.Profile.beard);}
         void SetGreenScreen(bool value)
         {
             if(backgroundRenderer==null)return;

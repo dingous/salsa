@@ -132,3 +132,7 @@ Added six official CC0 MakeHuman garments (male_casualsuit01 through 06) alongsi
 The generator bakes only the intersection of skin regions hidden by all seven garments, plus the shared shoe mask. This fixes visible skin protrusions without permanently cutting out arms needed by short sleeves. Accessory head masks remain unbaked. Inspected actual rendered captures for all seven choices (CorporateUnity/Validation/wardrobe-0.png through wardrobe-6.png). The full native suite passed 428 checks, including exclusive garment visibility, selection serialization, original facial/limb regressions, shader support and responsive views. Log: Validation/corporate-wardrobe-final.log. No real-camera collision test was performed for every garment and extreme pose.
 
 Rebuilt Windows application and updated bundled model/license (82,524,092-byte VRM). The web model remains its previous smaller version; this wardrobe update targets CorporateUnity Windows.
+
+## Direct avatar selector — 2026-10-14
+
+Windows header now switches Cartoon (procedural avatar) / Corporativo (realistic MakeHuman) inside the same application. Corporate reuse retains loaded model and clothing selection. Header synchronizes with actual active model, and selection is blocked during loading. Rebuilt player regression: 430 checks passed, exit 0. Log: Validation/corporate-mode-selector.log.
