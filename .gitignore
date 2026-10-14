@@ -26,3 +26,7 @@ vrm-*.log
 /CorporateUnity/Build/
 /CorporateUnity/UserSettings/
 /CorporateUnity/Validation/
+
+# Unity editor recovery files (kept locally)
+/Assets/_Recovery/
+/Assets/_Recovery.meta
