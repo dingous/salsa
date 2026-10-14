@@ -11,6 +11,7 @@ namespace WebcamAvatar
         public string name = "Meu avatar";
         public string skin = "#DFA17B", hair = "#382C35", eyes = "#477A72", outfit = "#7279EC";
         public int hairStyle;
+        public int clothingStyle;
         public int style; // 0: cartoon; 1: realistic. Older profiles remain cartoon.
         public bool IsRealistic => style == 1;
         public float EffectiveEyeSize => eyeSize * (IsRealistic ? .78f : 1f);
@@ -32,6 +33,7 @@ namespace WebcamAvatar
             noseSize = Clamp(noseSize,.8f,1.22f); mouthWidth = Clamp(mouthWidth,.8f,1.2f); jawWidth = Clamp(jawWidth,.84f,1.16f);
             cheekVolume=Detail(cheekVolume);lipFullness=Detail(lipFullness);eyeSize=Detail(eyeSize);hairVolume=Detail(hairVolume);
             hairStyle = Mathf.Clamp(hairStyle,0,3);
+            clothingStyle = Mathf.Clamp(clothingStyle,0,6);
             style = Mathf.Clamp(style,0,1);
             environment=Mathf.Clamp(environment,0,2);
             skin=ValidColor(skin,"#DFA17B"); hair=ValidColor(hair,"#382C35"); eyes=ValidColor(eyes,"#477A72"); outfit=ValidColor(outfit,"#7279EC");

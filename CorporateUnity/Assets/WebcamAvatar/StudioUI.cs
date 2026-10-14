@@ -36,6 +36,7 @@ namespace WebcamAvatar
         string[] savedFolders=Array.Empty<string>();
         Dropdown library;
         Dropdown hairDropdown;
+        Dropdown clothingDropdown;
         Dropdown styleDropdown;
         Dropdown environmentDropdown;
         Toggle glassesToggle, beardToggle, animationToggle;
@@ -244,6 +245,7 @@ namespace WebcamAvatar
             rigStatus.text=active?"UNIVRM  /  ROSTO · CORPO · MÃOS":"AVATAR PRO  /  RIG FACIAL 52";
             bool editable=!active || Vrm.Appearance!=null && Vrm.Appearance.IsCorporateHuman;
             styleDropdown.interactable=editable;hairDropdown.interactable=editable;glassesToggle.interactable=editable;beardToggle.interactable=editable && active;
+            clothingDropdown.interactable=active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman;
             SetButtonLabel(generateButton,"Personalizar pela foto  →");
         }
         void FrameVrm(bool full)
@@ -270,10 +272,11 @@ namespace WebcamAvatar
             Swatches("Cabelo",parent,195,new[]{"#241F29","#503328","#916249","#D7AB62","#C35438","#C9C7D9","#9B75DF"},c=>ModifyColor(p=>p.hair=c));
             Swatches("Olhos",parent,278,new[]{"#382A24","#7C5430","#417E68","#438DB3","#747889","#AD78C6"},c=>ModifyColor(p=>p.eyes=c));
             Swatches("Roupa",parent,361,new[]{"#7279EC","#45A496","#D17D7D","#E4B65F","#F0EEE8","#353B50"},c=>ModifyColor(p=>p.outfit=c));
-            hairDropdown=Dropdown(new[]{"Cabelo curto","Cabelo médio","Cabelo longo","Sem cabelo"},parent,24,450,210,40,i=>Modify(p=>p.hairStyle=i));
-            glassesToggle=Toggle("Óculos",parent,247,454,100,false,v=>Modify(p=>p.glasses=v));
-            beardToggle=Toggle("Barba",parent,24,503,140,false,v=>Modify(p=>p.beard=v));
-            Button("Ajustes do rosto",parent,174,508,172,34,ShowAdvanced,true);
+            clothingDropdown=Dropdown(new[]{"Social: terno e gravata","Social: camisa azul","Casual: malha manga longa","Social: camisa listrada","Casual: camiseta azul","Casual: jaqueta","Casual: camiseta branca"},parent,24,432,322,34,i=>Modify(p=>p.clothingStyle=i));
+            hairDropdown=Dropdown(new[]{"Cabelo curto","Cabelo médio","Cabelo longo","Sem cabelo"},parent,24,474,210,32,i=>Modify(p=>p.hairStyle=i));
+            glassesToggle=Toggle("Óculos",parent,247,478,100,false,v=>Modify(p=>p.glasses=v));
+            beardToggle=Toggle("Barba",parent,24,515,140,false,v=>Modify(p=>p.beard=v));
+            Button("Ajustes do rosto",parent,174,515,172,28,ShowAdvanced,true);
         }
         void BuildBroadcast(Transform parent)
         {
@@ -499,7 +502,7 @@ namespace WebcamAvatar
             Application.OpenURL("https://obsproject.com/kb/virtual-camera-guide");
         }
         IEnumerator LoadSavedModel(string path,string identityName){yield return StartCoroutine(LoadVrmRoutine(path));avatar.Profile.name=identityName;previewName.text=nameField.text=identityName;SyncAppearance();}
-        void SyncAppearance(){styleDropdown.SetValueWithoutNotify(avatar.Profile.style);hairDropdown.SetValueWithoutNotify(avatar.Profile.hairStyle);glassesToggle.SetIsOnWithoutNotify(avatar.Profile.glasses);beardToggle.SetIsOnWithoutNotify(avatar.Profile.beard);}
+        void SyncAppearance(){styleDropdown.SetValueWithoutNotify(avatar.Profile.style);hairDropdown.SetValueWithoutNotify(avatar.Profile.hairStyle);clothingDropdown.SetValueWithoutNotify(avatar.Profile.clothingStyle);glassesToggle.SetIsOnWithoutNotify(avatar.Profile.glasses);beardToggle.SetIsOnWithoutNotify(avatar.Profile.beard);}
         void SetGreenScreen(bool value)
         {
             if(backgroundRenderer==null)return;

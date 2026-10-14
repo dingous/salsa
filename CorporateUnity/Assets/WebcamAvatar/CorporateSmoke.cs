@@ -74,6 +74,14 @@ namespace WebcamAvatar
             yield return new WaitForSecondsRealtime(.5f);
             Check(appearance!=null && appearance.IsCorporateHuman,"Actual MakeHuman identity morphs available");
             Check(vrm.ExpressionCount>=67,"52 ARKit expressions and 15 visemes");
+            Call(ui,"ShowPage",1);Call(ui,"FrameVrm",true);
+            for(int outfit=0;outfit<=6;outfit++){
+                ui.avatar.Profile.clothingStyle=outfit;vrm.ApplyAppearance();Call(ui,"SyncAppearance");
+                for(int garment=0;garment<=6;garment++)Check(Enabled(vrm,garment==0?"male_elegantsuit01":"male_casualsuit"+garment.ToString("00"))==(outfit==garment),"Exclusive garment "+garment+" for outfit "+outfit);
+                var wardrobeProfile=JsonUtility.FromJson<AvatarProfile>(JsonUtility.ToJson(ui.avatar.Profile));wardrobeProfile.Sanitize();Check(wardrobeProfile.clothingStyle==outfit,"Clothing selection profile roundtrip "+outfit);
+                yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(root,"wardrobe-"+outfit+".png")));
+            }
+            ui.avatar.Profile.clothingStyle=0;vrm.ApplyAppearance();Call(ui,"SyncAppearance");
             Call(ui,"ShowPage",3);
             yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(root,"corporate-realistic.png")));
             foreach(var mesh in vrm.Instance.GetComponentsInChildren<Renderer>())foreach(var material in mesh.sharedMaterials)

@@ -124,3 +124,11 @@ Technique source: https://gery.casiez.net/1euro/ and the authors' CHI 2012 paper
 
 Synthetic tests: resting noise energy reduced at least 75%; a 20 cm intentional step reached within 2 cm of target in 500 ms; short loss holds, long loss releases. The previous real webcam gesture PASS predates this smoothing update. These benchmarks do not establish zero webcam jitter or measured real-world latency after the update.
 Native rebuilt player: 366 checks passed, exit 0, CORPORATE_RESULT=True. Log: Validation/corporate-smoothing.log.
+
+## Windows wardrobe — 2026-10-14
+
+Added six official CC0 MakeHuman garments (male_casualsuit01 through 06) alongside male_elegantsuit01. Editor choices: suit/tie, blue shirt with jeans, long-sleeved knit top, striped shirt with jeans, blue T-shirt, casual jacket, white T-shirt. Each option has its own fitted skinned mesh and embedded texture. clothingStyle 0..6 is persisted and sanitized; older profiles default to the existing suit. Selector fits within the Appearance card and is enabled only for the corporate model.
+
+The generator bakes only the intersection of skin regions hidden by all seven garments, plus the shared shoe mask. This fixes visible skin protrusions without permanently cutting out arms needed by short sleeves. Accessory head masks remain unbaked. Inspected actual rendered captures for all seven choices (CorporateUnity/Validation/wardrobe-0.png through wardrobe-6.png). The full native suite passed 428 checks, including exclusive garment visibility, selection serialization, original facial/limb regressions, shader support and responsive views. Log: Validation/corporate-wardrobe-final.log. No real-camera collision test was performed for every garment and extreme pose.
+
+Rebuilt Windows application and updated bundled model/license (82,524,092-byte VRM). The web model remains its previous smaller version; this wardrobe update targets CorporateUnity Windows.

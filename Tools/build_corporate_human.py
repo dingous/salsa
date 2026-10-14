@@ -47,6 +47,7 @@ for subdir, name, kind in [
     ('hair', 'short04.mhclo', 'Hair'),
     ('hair', 'long01.mhclo', 'Hair'),
     ('clothes', 'male_elegantsuit01.mhclo', 'Clothes'),
+    *[('clothes', f'male_casualsuit{i:02}.mhclo', 'Clothes') for i in range(1, 7)],
     ('clothes', 'shoes01.mhclo', 'Clothes'),
     ('clothes', 'wdg_scruffy_beard.mhclo', 'Clothes'),
     ('clothes', 'spamrakuen_tbm_glasses_frames_01.mhclo', 'Clothes'),
@@ -58,10 +59,32 @@ for subdir, name, kind in [
 TargetService.bake_targets(human)
 FaceService.load_targets(human, load_microsoft_visemes=False, load_meta_visemes=True, load_arkit_faceunits=True)
 FaceService.interpolate_targets(human)
-# Optional accessories must not cut permanent holes in the head when switched off.
+# Remove only skin covered by every wardrobe choice. Baking the union of
+# clothing masks would leave holes in the arms when switching to a T-shirt.
+wardrobe_masks = []
+shoe_mask = set()
+for modifier in human.modifiers:
+    if modifier.type != 'MASK' or modifier.vertex_group == 'body':
+        continue
+    group = human.vertex_groups.get(modifier.vertex_group)
+    if not group:
+        continue
+    hidden = {v.index for v in human.data.vertices if any(g.group == group.index and g.weight > .5 for g in v.groups)}
+    if any(n in modifier.vertex_group.lower() for n in ('male_elegantsuit', 'male_casualsuit')):
+        wardrobe_masks.append(hidden)
+    elif 'shoes01' in modifier.vertex_group.lower():
+        shoe_mask |= hidden
 for modifier in list(human.modifiers):
-    if modifier.type == 'MASK' and modifier.vertex_group != 'body' and not any(n in modifier.vertex_group.lower() for n in ('male_elegantsuit', 'shoes01')):
+    if modifier.type == 'MASK' and modifier.vertex_group != 'body':
         human.modifiers.remove(modifier)
+if len(wardrobe_masks) != 7:
+    raise RuntimeError(f'Expected seven garment masks, got {len(wardrobe_masks)}')
+hidden = set.intersection(*wardrobe_masks) | shoe_mask
+group = human.vertex_groups.new(name='wardrobe_common_hidden')
+group.add(sorted(hidden), 1, 'REPLACE')
+mask = human.modifiers.new(name='Wardrobe common coverage', type='MASK')
+mask.vertex_group = group.name
+mask.invert_vertex_group = True
 ExportService.bake_modifiers_remove_helpers(human, bake_masks=True, bake_subdiv=False)
 rig = human.parent
 if rig is None or rig.type != 'ARMATURE':

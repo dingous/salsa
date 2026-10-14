@@ -24,6 +24,8 @@ namespace WebcamAvatar
             if(!IsCorporateHuman)return;
             foreach(var mesh in meshes) {
                 string name=mesh.name.ToLowerInvariant();
+                if(name.Contains("male_elegantsuit01"))mesh.enabled=profile.clothingStyle==0;
+                for(int i=1;i<=6;i++)if(name.Contains("male_casualsuit"+i.ToString("00")))mesh.enabled=profile.clothingStyle==i;
                 if(name.Contains("short02"))mesh.enabled=profile.hairStyle==0;
                 else if(name.Contains("short04"))mesh.enabled=profile.hairStyle==1;
                 else if(name.Contains("long01"))mesh.enabled=profile.hairStyle==2;

@@ -3,7 +3,8 @@ Corporate Human 1.0
 Generated locally using MPFB 2.0.18 and Blender 5.2.2, exported to VRM 1.0.
 The generated model is derived from MakeHuman Community's CC0 base mesh,
 core textures, eyes, teeth, tongue, eyebrows, eyelashes, hair short02,
-short04 and long01, male_elegantsuit01 and shoes01.
+short04 and long01, male_elegantsuit01, male_casualsuit01 through
+male_casualsuit06, and shoes01.
 
 Additional CC0 fitted assets:
 WDG: wdg_scruffy_beard (bodyparts05).
