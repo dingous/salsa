@@ -21,6 +21,7 @@ vrm-*.log
 /Web/vendor/*.tgz
 /CorporateUnity/Library/
 /CorporateUnity/Temp/
+/CorporateUnity/.utmp/
 /CorporateUnity/Logs/
 /CorporateUnity/Obj/
 /CorporateUnity/Build/
