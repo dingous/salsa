@@ -1,0 +1,94 @@
+const $=id=>document.getElementById(id),status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
+const client=crypto.randomUUID();
+let token='',tracking=false,virtual=false,cameraSession=null,detected={face:false,pose:false,hands:0},worker,ready=false,epoch=0,pending=false,latest=null,reconnecting=null,bridgeWasOffline=false;
+$('virtual').disabled=true;
+async function handshake() {
+  const response=await fetch('/api/session',{signal:AbortSignal.timeout(5000)});
+  if(!response.ok)throw new Error('A ponte local não respondeu.');
+  const session=await response.json();
+  if(session.app!=='AvatarStudioWeb'||session.version!==2)throw new Error('A ponte local está desatualizada. Abra novamente Iniciar Avatar Studio Web.cmd.');
+  token=session.token;worker?.postMessage({type:'token',token});return session;
+}
+async function api(path,body,retry=true) {
+  const response=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',signal:AbortSignal.timeout(path==='camera/start'?12000:5000),headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body)});
+  let result;
+  try{result=await response.json();}catch{throw new Error('A ponte local está indisponível. Tentando reconectar…');}
+  if(response.status===403&&retry) {
+    if(!reconnecting)reconnecting=handshake().finally(()=>reconnecting=null);
+    await reconnecting;
+    // Reads are safe to retry; a failed mutation leaves its result explicit to the user.
+    if(body===undefined)return api(path,undefined,false);
+    throw new Error('Ponte reconectada. Tente a operação novamente.');
+  }
+  if(!response.ok)throw new Error(result.error||'A ponte local não respondeu.');return result;
+}
+const send=(type,value)=>worker?.postMessage({type,value});
+function presentation(value,save=true) {
+  value=value==='corporate'?'corporate':'professional';
+  document.body.dataset.presentation=value;$('presentation').value=value;
+  $('profileNote').textContent=value==='corporate'?'Cenário neutro, luz suave e expressões moderadas para reuniões.':'Iluminação de estúdio e expressões naturais.';
+  $('background').value=value==='corporate'?'corporate':'studio';$('framing').value='bust';
+  send('presentation',value);send('background',$('background').value);send('framing','bust');
+  if(save)try{localStorage.setItem('avatarPresentation',value);}catch{}
+}
+$('presentation').onchange=()=>presentation($('presentation').value);
+function applyState(result) {
+  latest=result;
+  const foreignTracker=result.trackerOwner&&result.trackerOwner!==client,foreignCamera=result.cameraOwner&&result.cameraOwner!==client;
+  tracking=result.tracking&&!foreignTracker;virtual=result.virtualCamera&&!foreignCamera;cameraSession=virtual?result.cameraSession:null;
+  worker?.postMessage({type:'virtual',value:virtual,session:cameraSession});
+  $('track').textContent=foreignTracker?'Webcam em uso em outra aba':tracking?'Parar rastreamento':'Iniciar rastreamento';
+  $('track').disabled=pending||!!foreignTracker;$('camera').disabled=!!result.tracking||pending;
+  $('virtual').textContent=foreignCamera?'Saída em uso em outra aba':virtual?'Desativar câmera virtual':'Ativar câmera virtual';
+  $('virtual').disabled=pending||!!foreignCamera||!ready||result.cameraState==='stopping';
+  $('virtualState').textContent=foreignCamera?'Saída ativa em outra aba':virtual?(result.streaming?'OBS Virtual Camera transmitindo':'Aguardando frames do avatar'):'Câmera virtual desligada';
+  $('cameraDot').classList.toggle('on',virtual&&result.streaming);
+  $('frameState').textContent=virtual?`${result.framesReceived} frames do avatar · 1280 × 720`:'Somente o avatar é enviado';
+  $('trackingState').textContent=foreignTracker?'Webcam controlada por outra aba':!tracking?'Webcam desligada':!result.connected?'Aguardando imagem da webcam':`${detected.face?'Rosto detectado':'Sem rosto'} · ${detected.pose?'Corpo detectado':'Corpo fora do quadro'} · ${detected.hands} ${detected.hands===1?'mão':'mãos'}`;
+}
+async function operation(path,body,message) {
+  if(pending)return;pending=true;epoch++;$('track').disabled=$('virtual').disabled=true;
+  if(path==='camera/stop'){virtual=false;worker?.postMessage({type:'virtual',value:false,session:null});}
+  try {
+    const result=await api(path,body);applyState(result);
+    if(path==='tracking/start'){$('demo').checked=false;send('demo',false);}
+    status(message);
+  }catch(error){status(error.message,true);}finally{pending=false;epoch++;if(latest)applyState(latest);}
+}
+$('modelFile').addEventListener('change',async event=>{const file=event.target.files[0];if(!file||!worker)return;if(file.size>150*1024*1024){status('O avatar deve ter até 150 MB.',true);return;}const source=await file.arrayBuffer();status('Carregando seu modelo VRM…');worker.postMessage({type:'load',source},[source]);event.target.value='';});
+$('defaultModel').onclick=()=>{status('Carregando Seed-san…');worker?.postMessage({type:'load',source:new URL('assets/Seed-san.vrm',location.href).href});};
+$('framing').onchange=()=>send('framing',$('framing').value);$('background').onchange=()=>send('background',$('background').value);$('demo').onchange=()=>send('demo',$('demo').checked);
+$('calibrate').onclick=()=>{if(!tracking){status('Inicie o rastreamento antes de calibrar.');return;}send('calibrate');status('Posição neutra calibrada.');};
+$('track').onclick=()=>operation('tracking/'+(tracking?'stop':'start'),{camera:Number($('camera').value)},tracking?'Rastreamento encerrado. A webcam foi liberada.':'Abrindo a webcam física para rastrear rosto, mãos e corpo…');
+$('virtual').onclick=()=>operation('camera/'+(virtual?'stop':'start'),{},virtual?'Câmera virtual desligada.':'Câmera virtual pronta. No Teams, escolha OBS Virtual Camera.');
+$('clean').onclick=()=>document.body.classList.add('clean');window.addEventListener('keydown',event=>{if(event.key==='Escape')document.body.classList.remove('clean');});$('avatar').addEventListener('dblclick',()=>document.body.classList.remove('clean'));
+async function pollStatus() {
+  const current=epoch;
+  try {
+    const result=await api('status');
+    if(current===epoch&&!pending){applyState(result);if(bridgeWasOffline){bridgeWasOffline=false;status('Ponte local reconectada. Ative o rastreamento e a câmera virtual para continuar.');}if(result.trackerError||result.cameraError)status(result.trackerError||result.cameraError,true);}
+  }catch(error){if(current===epoch&&!pending){bridgeWasOffline=true;virtual=tracking=false;latest=null;worker?.postMessage({type:'virtual',value:false,session:null});$('virtualState').textContent='Ponte desconectada';$('cameraDot').classList.remove('on');$('track').disabled=false;$('virtual').disabled=true;status(error.name==='TimeoutError'?'A ponte local demorou a responder. Tentando reconectar…':error.message,true);}}
+  setTimeout(pollStatus,1000);
+}
+async function initialize() {
+  try {
+    if(!$('avatar').transferControlToOffscreen)throw new Error('Use uma versão atual do Chrome ou Edge com suporte a OffscreenCanvas.');
+    await handshake();worker=new Worker('render-worker.js',{type:'module'});
+    worker.onerror=event=>{ready=false;virtual=false;send('virtual',false);$('virtual').disabled=true;status('Erro na renderização: '+(event.message||'Não foi possível carregar o renderer.'),true);api('camera/stop',{}).catch(()=>{});};
+    worker.onmessage=({data})=>{
+      if(data.type==='loaded'){ready=true;$('modelName').textContent=data.name;$('rigInfo').textContent=`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status('Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');}
+      else if(data.type==='tracking')detected=data;
+      else if(data.type==='cameraError'){virtual=false;send('virtual',false);operation('camera/stop',{},data.error);}
+      else if(data.type==='renderError'){ready=false;$('virtual').disabled=true;operation('camera/stop',{},'Renderização interrompida: '+data.error);}
+      else if(data.type==='error')status(data.error,true);
+      else if(data.type==='cameraRetrying')status('Falha temporária no envio. Reconectando o vídeo do avatar…');
+      else if(data.type==='cameraRecovered')status('Transmissão do avatar recuperada.');
+      else if(data.type==='authExpired'){if(!reconnecting)reconnecting=handshake().catch(error=>status(error.message,true)).finally(()=>reconnecting=null);}
+    };
+    const canvas=$('avatar').transferControlToOffscreen();worker.postMessage({type:'init',token,client,canvas},[canvas]);
+    let preferred='professional';try{preferred=localStorage.getItem('avatarPresentation')||preferred;}catch{}
+    presentation(preferred,false);pollStatus();
+  }catch(error){status('Não foi possível iniciar o studio: '+error.message,true);}
+}
+window.addEventListener('pagehide',()=>{worker?.terminate();for(const operation of ['tracking/stop','camera/stop'])fetch('/api/'+operation,{method:'POST',keepalive:true,headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});});
+initialize();

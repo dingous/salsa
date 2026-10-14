@@ -1,0 +1,104 @@
+Validação do Avatar Studio — 13/10/2026
+
+Concluído:
+- E2E web/driver real concluído em 14/10/2026: 14 testes do servidor,
+  6 regressões de mãos e 9 execuções nativas aprovadas. Ver Web/E2E_REPORT.txt.
+- Corrigidos isolamento entre abas/sessões, falhas transitórias, respostas
+  atrasadas, validação de pacotes e reconexão de autenticação após reinício.
+- Testes reais de cor/orientação, perda de frames, reinício, fechamento de
+  abas e reabertura da webcam física; nenhuma reunião do Teams foi iniciada.
+- Versão web local com VRM, rastreamento MediaPipe e saída para OBS Virtual Camera.
+- OBS 32.2.2 instalado; driver real respondeu. Saída do navegador lida por
+  DirectShow em 1280x720, contendo o avatar e o cenário (sem a interface).
+- Rosto, corpo e duas mãos detectados na webcam real durante o teste web.
+- Quatro testes do servidor aprovados: origem/token, caminhos, timeout de
+  rastreamento e resolução/cor/encerramento da câmera virtual.
+- Renderização web transferida a Web Worker com OffscreenCanvas.
+- Seleção de OBS Virtual Camera documentada para Teams; reunião não testada.
+- UniVRM integrado ao runtime: Seed-san VRM 1.0 carregado por padrão, malhas
+  texturizadas reais, rig normalizado, expressões, olhar e spring bones.
+- Executável Windows validado: materiais presentes, boca/piscada/cabeça,
+  todos os dez dedos e movimento de perna via pacotes UDP determinísticos.
+- Retorno das expressões ao neutro após perda de sinal, recarregamento do
+  arquivo VRM salvo e manutenção do modelo ativo após falha de importação.
+- Tela Modelo VRM com importação, demonstração e alternativa procedural;
+  biblioteca guarda o arquivo do modelo junto do perfil.
+- Interface responsiva com disposição em colunas ou painéis empilhados,
+  rolagem vertical, área segura e prévia sem distorção.
+- Layouts 390x844, 768x1024, 1366x768 e 2560x1080 renderizados no executável;
+  posições horizontais dos botões verificadas automaticamente.
+- Seletor Cartoon/Realístico disponível antes e depois da geração; estilo salvo no perfil.
+- Ambos os estilos renderizados no executável Windows; persistência JSON e as
+  52 deformações faciais não vazias verificadas no modo Realístico.
+- Realístico usa materiais físicos e proporções diferentes; é uma interpretação
+  3D procedural da referência, sem reconstrução fotográfica.
+- Build Windows com Unity 6000.4.5f1: sucesso.
+- Executável: Build/AvatarStudio.exe.
+- Criação cartoon por foto testada no editor e no executável.
+- Interface e renderização do personagem inspecionadas por imagens geradas pelo aplicativo.
+- Seis testes Python aprovados: perfil por foto, foto inválida, ausência de rosto,
+  múltiplos rostos, leitura TCP fragmentada e frames JPEG no backend virtual simulado.
+- Integração Unity: upload normalizado, geração, edição, salvar/carregar,
+  modo de apresentação e recebimento real de pacotes da webcam.
+- Expressões determinísticas jawOpen e eyeBlinkLeft aplicadas e retorno ao neutro
+  após perda de pacotes verificados no Unity.
+- Na webcam real desta rodada houve comunicação válida; rosto/pose não estavam
+  enquadrados no instante do teste. A inferência anterior detectou rosto e corpo.
+- Nenhuma imagem da webcam foi gravada.
+
+Dependência externa pendente:
+- O driver OBS Virtual Camera não está instalado nesta máquina.
+- O aplicativo mostra o erro de instalação corretamente.
+- A transmissão até um cliente de chamada real não pôde ser validada sem o driver.
+- A câmera virtual usa pyvirtualcam + driver OBS; não é instalada pelo projeto.
+
+Arquivos de evidência local:
+- studio-build.log
+- studio-validation.log
+- studio-player.log
+- Validation/player-studio.png
+- Validation/ui-creator.png, ui-appearance.png, ui-broadcast.png
+
+Observação de ambiente:
+- O Unity Editor emite uma exceção interna de indexação em UnityEditor.Search.
+  Ela não é originada pelos scripts do aplicativo; o build e o executável
+  foram validados independentemente desse indexador.
+
+Repetir testes:
+Tracker/.venv/Scripts/python.exe Tracker/test_backend.py
+
+Iniciar:
+Iniciar Avatar Studio.cmd
+
+Atualização do avatar avançado:
+- Malha facial original com 6.824 vértices (4.264 na superfície frontal),
+  52 blendshapes e deltas de normais para acompanhar as deformações.
+- BakeMesh confirmou deslocamento real dos vértices com jawOpen e eyeBlinkLeft.
+- Pacotes sintéticos de 21 landmarks animaram as juntas dos dedos;
+  retorno ao neutro após perda de rastreamento verificado.
+- Trinta juntas nos dedos e dois pulsos, com orientação pela geometria da mão.
+- Face, pose e Hand Landmarker executados juntos em quatro frames de webcam,
+  sem salvar imagens e sem erros do aplicativo.
+- Na integração Unity desta atualização: comunicação real ativa, pose detectada;
+  rosto não estava enquadrado no instante do teste. A resposta dos dedos foi
+  validada com landmarks sintéticos, não com uma gravação de gesto humano.
+- Nove controles avançados e prévias de emoções adicionados ao Studio.
+- Cabelo em mechas, volume do penteado, dentes individuais e roupa modelada.
+- Os seis testes Python passaram novamente após a atualização do gerador.
+
+Cobertura do corpo e gestos:
+- Quadril, coluna, coxas, joelhos, tornozelos e pés adicionados ao avatar principal.
+- Modo Corpo inteiro disponível na tela de prévia.
+- Todos os 52 controles faciais têm deformação finita e não vazia.
+- Todos os dez dedos responderam aos pacotes de flexão no teste de integração.
+- Coluna e pernas responderam à pose sintética; perda de captura retorna ao repouso.
+- Flexão e abertura lateral dos dedos, orientação dos pulsos e deslocamento do
+  corpo pela posição do quadril na imagem implementados.
+- Face, corpo e mãos processam o mesmo frame por padrão. Captura parcial é
+  sinalizada; landmarks fora do enquadramento não acionam dedos e membros.
+- Execução real de quatro frames com os três modelos concluída sem erro.
+- Esses resultados verificam funcionamento e cobertura, não precisão de 100%.
+  Não houve comparação com captura de referência nem validação humana completa
+  em diferentes condições. Requisito registrado em TRACKING_REQUIREMENTS.md.
+- A referência de posição do quadril, o deslocamento em imagem e sua
+  recalibração foram verificados pelo teste de integração Unity.

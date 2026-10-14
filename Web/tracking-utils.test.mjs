@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {countHands} from './tracking-utils.js';
+const hand=confidence=>Array.from({length:21},()=>({x:0,y:0,z:0,confidence}));
+assert.equal(countHands(null),0);
+assert.equal(countHands({leftHand:[],rightHand:[]}),0);
+assert.equal(countHands({leftHand:hand(.9),rightHand:[]}),1);
+assert.equal(countHands({leftHand:hand(.9),rightHand:hand(.8)}),2);
+assert.equal(countHands({leftHand:hand(.1),rightHand:hand(.9)}),1);
+assert.equal(countHands({leftHand:hand(NaN),rightHand:[{confidence:1}]}),0);
+console.log('6 hand detection regression cases passed');

@@ -1,0 +1,78 @@
+Avatar Studio Web — E2E de transmissão e câmera virtual
+Concluído em 14/10/2026, Windows, OBS Virtual Camera real.
+
+Resultado final
+- 14 testes do servidor aprovados.
+- 6 casos de regressão da contagem de mãos aprovados.
+- 9 execuções E2E com receptor DirectShow real aprovadas.
+- Uma execução anterior falhou quando uma falha de envio desligou a saída.
+  O histórico foi preservado; o cenário corrigido passou, inclusive com
+  duas quedas de conexão provocadas pelo proxy de teste.
+
+Caminho verificado
+Webcam física -> MediaPipe local -> avatar VRM no navegador -> JPEG HTTP
+-> ponte Python -> driver OBS Virtual Camera -> receptor DirectShow.
+Nenhuma imagem bruta da webcam foi gravada nos artefatos dos testes.
+
+Verificações no ambiente real
+- Vídeo recebido em 1280x720, contendo somente avatar e cenário.
+- Animação confirmada por diferenças entre frames consecutivos.
+- Mudança de cenário refletida na câmera virtual; cor e orientação
+  horizontal/vertical verificadas com um padrão assimétrico.
+- Driver recebido a aproximadamente 29,7–29,9 fps.
+- Frames novos do navegador: aproximadamente 18–23 fps nesta máquina,
+  incluindo a ponte de teste. O driver repete frames entre atualizações.
+- Idade do último frame na ponte: 16–63 ms nos cenários registrados;
+  isso não mede a latência completa da captura e da inferência.
+- Duas quedas de conexão: recuperação sem desligar o dispositivo.
+- Perda de frames: saída passa a preto, em vez de congelar vídeo antigo.
+- Parada/reinício e rejeição de frames de uma sessão anterior.
+- Fechar uma aba secundária não interrompe a aba proprietária.
+- Fechar a aba proprietária libera a câmera virtual e a webcam física.
+- Webcam física reaberta depois da parada.
+- Reinício real da ponte: autenticação renovada e controles recuperados,
+  sem recarregar a página; transmissão retomada após clicar em Ativar.
+- Três ciclos rápidos de iniciar/parar pela interface concluídos sem erro.
+- Face e pose observadas no rastreamento real; contagem de mãos varia
+  conforme as mãos aparecem no quadro, em vez de reportar sempre duas.
+
+Bugs corrigidos
+- Listas vazias de mãos eram consideradas mãos detectadas.
+- Uma falha temporária de fetch encerrava imediatamente a transmissão.
+- Respostas antigas de status podiam contrariar uma operação de parada.
+- Abas podiam disputar ou encerrar a saída umas das outras.
+- Início simultâneo, cancelamento e frames atrasados não tinham isolamento.
+- JSON inválido podia encerrar uma requisição sem resposta estruturada.
+- Pacotes de rastreamento malformados podiam atingir o renderer.
+- Reiniciar a ponte deixava o cliente com token antigo e mensagens técnicas.
+- O atalho reutilizava versões antigas da ponte. Agora verifica o hash do
+  código e só substitui processos Python deste projeto, liberando os dispositivos.
+
+Como repetir
+1. Tracker\.venv\Scripts\python.exe Web\test_server.py -v
+2. node Web\tracking-utils.test.mjs
+3. Abra Iniciar Avatar Studio Web.cmd, escolha Prévia animada e ative a
+   câmera virtual. Então execute:
+   Tracker\.venv\Scripts\python.exe Web\e2e_native.py observe --motion --device 1
+4. Com a câmera virtual desligada na interface, execute:
+   Tracker\.venv\Scripts\python.exe Web\e2e_native.py pattern --device 1
+5. Para validar reconexão da ponte:
+   powershell -NoProfile -ExecutionPolicy Bypass -File Web\start.ps1 -NoBrowser -Restart
+   Aguarde a mensagem de reconexão na página e ative novamente a saída.
+
+O índice DirectShow 1 corresponde ao OBS Virtual Camera nesta máquina.
+Em outra máquina, ajuste --device para o índice correto do dispositivo virtual.
+O proxy Web/e2e_proxy.py é somente um instrumento local de teste e não
+participa da inicialização normal do aplicativo.
+
+Evidências
+- Validation/web-e2e-results.json: medições e histórico das execuções nativas.
+- Validation/e2e-final-output.png: frame recebido da câmera virtual.
+- Validation/e2e-web-studio-proof.png: captura da interface de teste.
+
+Limites
+- Nenhuma reunião, chamada externa ou transmissão pela rede do Teams foi iniciada.
+- A câmera virtual foi validada com um consumidor Windows real, não dentro do Teams.
+- O navegador de teste manteve document.visibilityState=visible; não houve
+  validação de aba realmente oculta, aba descartada ou computador suspenso.
+- Os testes não demonstram precisão de 100% em gestos e expressões humanos.

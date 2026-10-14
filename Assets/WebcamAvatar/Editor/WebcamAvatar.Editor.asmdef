@@ -1,0 +1,6 @@
+{
+  "name": "WebcamAvatar.Editor",
+  "references": ["WebcamAvatar"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

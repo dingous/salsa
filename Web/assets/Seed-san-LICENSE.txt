@@ -1,0 +1,11 @@
+Seed-san — © VirtualCast, Inc.
+
+Source: https://github.com/vrm-c/vrm-specification/tree/master/samples/Seed-san
+VRM Public License 1.0: https://vrm.dev/licenses/1.0/
+
+The model's embedded VRMC_vrm metadata permits everyone to use the avatar,
+corporate commercial use, redistribution, modification and redistribution of
+modifications. Credit notation is required. This attribution accompanies the
+model and appears on the application's Modelo VRM screen.
+
+This license belongs to the model; UniVRM's MIT license applies to the framework.
