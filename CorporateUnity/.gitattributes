@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.vrm -text -diff
+*.asset -whitespace
+*.unity -whitespace
+*.meta -whitespace
+*.mat -whitespace
+*.renderTexture -whitespace

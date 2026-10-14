@@ -19,3 +19,10 @@ studio-*.log
 web-*.log
 vrm-*.log
 /Web/vendor/*.tgz
+/CorporateUnity/Library/
+/CorporateUnity/Temp/
+/CorporateUnity/Logs/
+/CorporateUnity/Obj/
+/CorporateUnity/Build/
+/CorporateUnity/UserSettings/
+/CorporateUnity/Validation/
