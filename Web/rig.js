@@ -43,7 +43,7 @@ export class AvatarRig {
     const rest=this.directions.get(key);if(!rest||rest.lengthSq()<1e-8||direction.lengthSq()<1e-8)return;
     const q=new THREE.Quaternion().setFromUnitVectors(rest.clone().normalize(),direction.clone().normalize()).multiply(this.world.get(key));this.rotate(key,q,t,true);
   }
-  segment(key,points,a,b,t,fallback){
+  segment(key,points,a,b,t,fallback,upperKey=null){
     const tracked=this.valid(points,a,b),previous=this.filtered.get(key);
     let direction=tracked?this.point(points[b]).sub(this.point(points[a])):fallback.clone();
     if(tracked&&direction.lengthSq()>1e-8)this.lastSeen.set(key,this.clock);
@@ -52,6 +52,15 @@ export class AvatarRig {
     direction.normalize();
     const filtered=previous||direction.clone();
     filtered.lerp(direction,1-Math.exp(-(tracked?9:3)*this.dt)).normalize();
+    // Apply the elbow limit after smoothing too: independently filtered joints
+    // can otherwise fold through one another during reacquisition.
+    const upper=upperKey&&this.filtered.get(upperKey);
+    if(upper&&upper.angleTo(filtered)>2.62){
+      let axis=upper.clone().cross(filtered);
+      if(axis.lengthSq()<1e-8)axis=upper.clone().cross(new THREE.Vector3(0,0,1));
+      if(axis.lengthSq()<1e-8)axis.set(1,0,0);
+      filtered.copy(upper).applyAxisAngle(axis.normalize(),2.62);
+    }
     this.filtered.set(key,filtered);this.aim(key,filtered,t);
   }
   calibrate(frame){this.neutral.copy(this.headRaw);const p=frame?.imagePose;if(this.valid(p,23,24))this.center={x:(p[23].x+p[24].x)/2,y:(p[23].y+p[24].y)/2};}
@@ -95,12 +104,30 @@ export class AvatarRig {
       const up=this.point(p[11]).add(this.point(p[12])).sub(this.point(p[23])).sub(this.point(p[24]));
       const right=this.point(p[this.mirror?12:11]).sub(this.point(p[this.mirror?11:12])).normalize();const forward=right.clone().cross(up).normalize();
       if(forward.lengthSq()>1e-8){const y=up.normalize(),x=y.clone().cross(forward).normalize();this.rotate('spine',new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,forward)),t,true);}
-    }else {if(this.rest.has('spine'))this.rotate('spine',this.rest.get('spine'),t);if(this.rest.has('hips'))this.rotate('hips',this.rest.get('hips'),t);}
+    }else {
+      // A desk webcam usually cannot see the pelvis. Retain shoulder roll
+      // without using inferred hips to tip or spin the seated avatar.
+      if(this.valid(p,11,12)&&this.world.has('spine')){
+        const across=this.point(p[this.mirror?12:11]).sub(this.point(p[this.mirror?11:12]));
+        const roll=THREE.MathUtils.clamp(Math.atan2(across.y,Math.abs(across.x)), -.3,.3);
+        this.rotate('spine',new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),roll).multiply(this.world.get('spine')),t,true);
+      }else if(this.rest.has('spine'))this.rotate('spine',this.rest.get('spine'),t);
+      if(this.rest.has('hips'))this.rotate('hips',this.rest.get('hips'),t);
+    }
     for(let side=0;side<2;side++) {
       const prefix=side===0?'left':'right',source=this.mirror?1-side:side,s=source===0?11:12,e=source===0?13:14,w=source===0?15:16,h=source===0?23:24,k=source===0?25:26,a=source===0?27:28,toe=source===0?31:32;
       // Clavicles stay attached to the chest; arm targets rotate joints only.
       if(this.rest.has(prefix+'Shoulder'))this.rotate(prefix+'Shoulder',this.rest.get(prefix+'Shoulder'),t);
-      this.segment(prefix+'UpperArm',p,s,e,t,new THREE.Vector3(side===0?.18:-.18,-1,0));this.segment(prefix+'LowerArm',p,e,w,t,new THREE.Vector3(side===0?.08:-.08,-1,.15));
+      const torso=this.bones.get('chest')||this.bones.get('spine');
+      const torsoRotation=torso?torso.getWorldQuaternion(new THREE.Quaternion()).multiply(this.world.get(torso===this.bones.get('chest')?'chest':'spine').clone().invert()):new THREE.Quaternion();
+      const relaxedUpper=new THREE.Vector3(side===0?.12:-.12,-1,.08).normalize().applyQuaternion(torsoRotation);
+      this.segment(prefix+'UpperArm',p,s,e,t,relaxedUpper);
+      // When wrists leave the bottom of the webcam, use a bent desk pose,
+      // coupled to the actual upper arm rather than a dangling world-space arm.
+      const relaxedLower=new THREE.Vector3(side===0?.06:-.06,-.25,1).normalize().applyQuaternion(torsoRotation);
+      const upperDirection=this.filtered.get(prefix+'UpperArm');
+      if(upperDirection)relaxedLower.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(relaxedUpper,upperDirection));
+      this.segment(prefix+'LowerArm',p,e,w,t,relaxedLower,prefix+'UpperArm');
       this.segment(prefix+'UpperLeg',p,h,k,t,new THREE.Vector3(0,-1,0));this.segment(prefix+'LowerLeg',p,k,a,t,new THREE.Vector3(0,-1,0));this.segment(prefix+'Foot',p,a,toe,t,new THREE.Vector3(0,-.1,1));
       const hand=demo?null:frame?.[(source===0?'left':'right')+'Hand'],wrist=prefix+'Hand';
       if(this.valid(hand,0,5,9,17)&&this.palms.has(wrist)) {

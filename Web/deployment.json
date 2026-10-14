@@ -1,13 +1,13 @@
 {
   "app": "AvatarStudio",
-  "release": "2026-10-14-makehuman-selector",
+  "release": "2026-10-14-makehuman-seated-arms",
   "tracking": "browser-local",
   "motionChecks": 46,
   "files": {
     "index.html": "0857beea4a2bf4fff178462519d3c820d52a686dc87168dc825f4a122f34b874",
     "studio.css": "71033a8c75a0d4afda9f7577252c621ff99756997b9154b26f6a783afdda8630",
     "studio.js": "3124389603a59f1ba718744cc1cff07b15be9feca6e804b9d6212cab826d0a70",
-    "rig.js": "f664532d6e7f6295028bb078e4a7bcd3cff0de49fe316921574c7d7f60e12f21",
+    "rig.js": "84857d5ef4a68a601e9c5ec2358f7ec2c733ef41554850451deedc44b58aa89e",
     "render-worker.js": "991024c0196d092fa87f89fbb4821df1b656b8c6292835407ad4e219d8f1b501",
     "browser-tracker.js": "7097b0b6d3683fe905eb9fdf7c4119e226b3a6fc0c352b7bd5c79133fb81e32d",
     "browser-tracking-worker.js": "997aa4f91c5252a1a9b440664ea2c88c8cfdbd19fd35435f3ee8fc4c39e590eb",

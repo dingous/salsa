@@ -19,5 +19,23 @@ rig.update(null,1/30);
 assert.ok(tracked.angleTo(rig.filtered.get('leftUpperArm'))<1e-6,'Brief tracking loss must hold the last arm direction');
 for(let i=0;i<180;i++)rig.update(null,1/30);
 assert.ok(rig.filtered.get('leftUpperArm').y<-.95,'Long tracking loss must ease into a relaxed pose');
+assert.ok(rig.filtered.get('leftLowerArm').z>.9,'Out-of-frame wrist must relax into a forward desk pose');
+for(const mirror of [false,true]){
+  rig.setMirror(mirror);
+  const source=mirror?12:11,elbow=mirror?14:13,wrist=mirror?16:15;
+  const seated=Array.from({length:33},()=>({x:0,y:0,z:0,confidence:0}));
+  seated[source]={x:0,y:0,z:0,confidence:1};
+  seated[elbow]={x:mirror?-.2:.2,y:.4,z:0,confidence:1};
+  for(let i=0;i<180;i++)rig.update({pose:true,points:seated},1/30);
+  const u=rig.filtered.get('leftUpperArm'),l=rig.filtered.get('leftLowerArm');
+  assert.ok(l.z>.85,'Missing wrist remains bent forward with a visible elbow in either mirror mode');
+  assert.ok(u.angleTo(l)<2.62,'Seated fallback must respect the elbow limit');
+  for(let i=0;i<120;i++){
+    const next=seated.map(p=>({...p}));
+    next[wrist]={x:-next[elbow].x,y:-next[elbow].y,z:.01,confidence:1};
+    rig.update({pose:true,points:next},1/30);
+    assert.ok(rig.filtered.get('leftUpperArm').angleTo(rig.filtered.get('leftLowerArm'))<=2.62+1e-6,'Filtered reacquisition must not overfold the elbow');
+  }
+}
 Object.values(bones).forEach((bone,i)=>assert.ok(bone.position.equals(positions[i]),'Shoulder and limb attachments must not translate'));
-console.log('Arm attachment, anatomical axis, motion speed and tracking-loss checks passed');
+console.log('Arm attachment, anatomical axis, motion speed, seated wrist loss, both mirrors and elbow reacquisition checks passed');
