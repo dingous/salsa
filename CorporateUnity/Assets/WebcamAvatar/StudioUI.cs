@@ -303,11 +303,26 @@ namespace WebcamAvatar
         public IEnumerator LoadVrmRoutine(string path)
         {
             if(busy)yield break;busy=true;SetStatus("Carregando malhas, texturas, expressões e rig do avatar VRM…");
+            bool builtinCorporate=path==VrmAvatarController.DefaultPath;
+            if(Application.platform==RuntimePlatform.Android && path.StartsWith(Application.streamingAssetsPath,StringComparison.Ordinal))
+            {
+                string destination=Path.Combine(Application.persistentDataPath,"BundledAvatars",Path.GetFileName(path));
+                using(var request=UnityEngine.Networking.UnityWebRequest.Get(path))
+                {
+                    yield return request.SendWebRequest();
+                    if(request.result!=UnityEngine.Networking.UnityWebRequest.Result.Success){busy=false;SetStatus("Falha ao extrair avatar do APK: "+request.error,true);yield break;}
+                    string extractionError=null;
+                    try{Directory.CreateDirectory(Path.GetDirectoryName(destination));File.WriteAllBytes(destination,request.downloadHandler.data);}
+                    catch(Exception error){extractionError=error.Message;}
+                    if(extractionError!=null){busy=false;SetStatus(extractionError,true);yield break;}
+                }
+                path=destination;
+            }
             var job=Vrm.Load(path);while(!job.IsCompleted)yield return null;
             busy=false;
             if(job.IsFaulted)SetStatus("Não foi possível carregar o VRM: "+job.Exception.GetBaseException().Message,true);
             else {
-                avatar.Profile.vrmSource=Path.GetFullPath(path)==Path.GetFullPath(VrmAvatarController.DefaultPath)?"builtin:CorporateHuman":path;
+                avatar.Profile.vrmSource=builtinCorporate?"builtin:CorporateHuman":path;
                 avatar.Profile.name=Vrm.ModelName;nameField.text=previewName.text=Vrm.ModelName;
                 SetVrmPresentation(avatar.Profile.corporate);FrameVrm(false);SetStatus("Avatar VRM ativo. Inicie o rastreamento ou explore a prévia animada.");
                 SetEnvironment(avatar.Profile.environment);environmentDropdown.SetValueWithoutNotify(avatar.Profile.environment);

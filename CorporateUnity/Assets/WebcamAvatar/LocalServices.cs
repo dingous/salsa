@@ -28,6 +28,7 @@ namespace WebcamAvatar
         }
         public LocalJob(string script,params string[] arguments)
         {
+            if(UnityEngine.Application.platform==UnityEngine.RuntimePlatform.Android)throw new PlatformNotSupportedException("Esta função ainda requer a ponte Windows. Este APK oferece a prévia e edição dos avatares; IA, rastreamento e escuta Android ainda precisam de integração.");
             var root=TrackerRoot; string python=Path.Combine(root,".venv","Scripts","python.exe");
             if(!File.Exists(python)) throw new FileNotFoundException("Prepare o ambiente executando Tracker/setup.ps1 antes de usar o aplicativo.");
             var args=new StringBuilder("-u ").Append(Quote(Path.Combine(root,script)));
