@@ -6,6 +6,7 @@ import urllib.request
 from pathlib import Path
 
 BASE='https://dingous.com.br/Games/Avatar/'
+EXPECTED_RELEASE=json.loads(Path(__file__).with_name('deployment.json').read_text(encoding='utf-8'))['release']
 
 def get(path,limit=None):
     request=urllib.request.Request(BASE+path,headers={'Cache-Control':'no-cache'})
@@ -17,7 +18,7 @@ while True:
     try:
         code,headers,body,url=get('deployment.json')
         manifest=json.loads(body)
-        assert manifest['release']=='2026-10-14-movement-e2e'
+        assert manifest['release']==EXPECTED_RELEASE
         break
     except Exception as error:
         if time.monotonic()-started>300:raise
@@ -30,7 +31,7 @@ for name,digest in manifest['files'].items():
     assert code==200
     if name=='index.html':
         assert b'id="avatar"' in body and b'id="mirror"' in body and b'type="importmap"' not in body
-    else:assert hashlib.sha256(body).hexdigest()==digest,name+' hash mismatch'
+    assert hashlib.sha256(body).hexdigest()==digest,name+' hash mismatch'
     if name.endswith('.js'):assert 'javascript' in headers['Content-Type'],name
     checks.append(name)
 for name,mime in [('vendor/mediapipe/package/vision_bundle.mjs','javascript'),('vendor/mediapipe/package/wasm/vision_wasm_internal.wasm','application/wasm'),('assets/face.task','application/octet-stream'),('assets/hand.task','application/octet-stream'),('assets/pose.task','application/octet-stream'),('assets/Seed-san.vrm','application/octet-stream')]:

@@ -31,3 +31,7 @@ Testes: `node Web/rig.test.mjs`, `node Web/tracking-utils.test.mjs` e `Tracker/.
 **Espelhar movimentos** troca o lado anatômico de destino e reflete os pontos de forma consistente para braços, pernas, mãos, expressões e cabeça. Desligado preserva o lado anatômico. O checkbox indica espelho estilo selfie, não inversão acidental.
 
 `/e2e-motion.html` executa 42 verificações usando o modelo Seed-san real: braços e antebraços, avanço, pernas, tronco, cabeça, lateralidade das piscadas, boca, cinco dedos, ligações do esqueleto e retorno após perda de sinal/calibração. `/e2e-browser-tracker.html` verifica o carregamento de WASM/modelos e inferência sem falsas detecções em imagem vazia. Esses testes determinísticos não garantem precisão perfeita de uma webcam em todas as condições. Os arquivos de teste não fazem parte do pacote público.
+
+## Personalização sem login
+
+O cookie `avatar_appearance_v1` guarda cores, apresentação, cenário, enquadramento e espelhamento por 180 dias (SameSite=Lax e Secure em HTTPS), restrito ao caminho do Avatar no site. Preferências antigas do perfil de apresentação são migradas. Arquivos VRM importados ficam no IndexedDB deste navegador, depois de carregados com sucesso, sem upload ao servidor. Ao escolher o modelo de demonstração, o avatar importado salvo é removido. Limpar dados do navegador remove a personalização; outros navegadores e dispositivos não compartilham essas configurações.

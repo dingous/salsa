@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readAppearance,writeAppearance,sanitizeAppearance,COOKIE_NAME} from './appearance-storage.js';
+const appearance={version:1,presentation:'corporate',background:'green',framing:'full',mirror:false,colors:{outfit:'#353b50',hair:'#503328'}};
+let assigned='',stored='';const doc={set cookie(value){assigned=value;stored=value.split(';')[0];},get cookie(){return stored;}};
+assert.ok(writeAppearance(appearance,doc,{pathname:'/Games/Avatar/',protocol:'https:'}));
+assert.deepEqual(readAppearance('other=x; '+stored),sanitizeAppearance(appearance));
+assert.ok(assigned.includes('Path=/Games/Avatar/'));assert.ok(assigned.includes('Secure'));assert.ok(assigned.includes('SameSite=Lax'));assert.ok(assigned.includes('Max-Age=15552000'));
+assert.ok(assigned.length<1500);
+assert.equal(readAppearance(COOKIE_NAME+'=%E0%A4%A'),null);assert.equal(readAppearance(COOKIE_NAME+'='+encodeURIComponent('{"version":999}')),null);
+assert.deepEqual(sanitizeAppearance({background:'javascript:alert(1)',framing:'huge',mirror:'false',colors:{skin:'red',outfit:'#fff000',secret:'token'}}).colors,{outfit:'#FFF000'});
+assert.equal(sanitizeAppearance({mirror:'false'}).mirror,true);
+const blocked={get cookie(){return '';},set cookie(value){}};assert.equal(writeAppearance(appearance,blocked,{pathname:'/',protocol:'http:'}),false);
+const stale={get cookie(){return COOKIE_NAME+'='+encodeURIComponent(JSON.stringify(sanitizeAppearance({})));},set cookie(value){}};assert.equal(writeAppearance(appearance,stale,{pathname:'/',protocol:'http:'}),false);
+writeAppearance(appearance,doc,{pathname:'/',protocol:'http:'});assert.ok(assigned.includes('Path=/;'));assert.ok(!assigned.includes('Secure'));
+console.log('Guest appearance cookie roundtrip, scope, validation and blocked-cookie checks passed');
