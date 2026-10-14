@@ -1,6 +1,7 @@
 """Dingous motion laboratory: constrained local AI plans, reproducible playback."""
 import argparse,json,math,os,socket,time,urllib.request,urllib.error
 from pathlib import Path
+from local_ai import ensure_local_ai,model_name
 ACTIONS={'neutral','smile','surprise','wink_left','wink_right','nod','wave_left','wave_right','raise_arms','open_hands','close_hands'}
 DEMO={'version':1,'steps':[{'action':a,'duration':2.0,'intensity':.8} for a in ('smile','wink_left','wink_right','nod','wave_left','wave_right','close_hands','open_hands','neutral')]}
 def validate(plan):
@@ -17,7 +18,7 @@ def validate(plan):
 def generate(prompt):
     if not isinstance(prompt,str) or not 1<=len(prompt.strip())<=1000: raise ValueError('Descreva o teste em até 1000 caracteres.')
     instruction='Generate only a JSON avatar animation plan with version:1 and steps:[{action,duration,intensity}]. Up to 12 steps, duration 0.5 to 5 seconds, intensity 0 to 1. Allowed actions: '+','.join(sorted(ACTIONS))+'. User request: '+prompt
-    body=json.dumps(dict(model=os.getenv('DINGOUS_AI_MODEL','qwen3.5:4b'),prompt=instruction,stream=False,format='json',think=False,keep_alive=0,options=dict(num_ctx=2048,num_predict=768,temperature=.2))).encode()
+    body=json.dumps(dict(model=model_name(),prompt=instruction,stream=False,format='json',think=False,keep_alive=0,options=dict(num_ctx=2048,num_predict=768,temperature=.2))).encode()
     request=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=body,headers={'Content-Type':'application/json'})
     try:
         with urllib.request.urlopen(request,timeout=90) as response: result=json.loads(response.read(256000))
@@ -50,6 +51,7 @@ def frames(plan,fps=30):
         for i in range(count):yield frame(step['action'],i/(count-1),step['intensity'])
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--generate-only',action='store_true');parser.add_argument('--plan');parser.add_argument('--prompt',default='');parser.add_argument('--demo',action='store_true');parser.add_argument('--port',type=int,default=5059);parser.add_argument('--output',required=True);args=parser.parse_args()
+    if not args.demo and not args.plan:ensure_local_ai()
     plan=validate(json.loads(Path(args.plan).read_text(encoding='utf-8'))) if args.plan else validate(DEMO) if args.demo else generate(args.prompt)
     Path(args.output).parent.mkdir(parents=True,exist_ok=True);Path(args.output).write_text(json.dumps(plan,ensure_ascii=False,indent=2),encoding='utf-8')
     print('READY|Demonstração programada' if args.demo else 'READY|Sequência gerada por IA local',flush=True)

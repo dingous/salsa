@@ -265,3 +265,10 @@ Added Webcam/Partner mode choice for both Windows models and web. Partner asks l
 Experimental QLoRA trainer source Tools/train_dingous_lora.py prepared for separate CUDA environment. Compilation checked; training dependencies/runtime and adapter import not validated, no approved dataset or fine-tuning executed. Memory is not model learning. Keep this distinction in UI/docs. No claim of GPU training fitting 8GB. Training outputs ignored by Git. Windows packages refreshed with partner script and speech helper. Web browser visual/audio E2E not performed.
 
 User requested every day, chose 09h São Paulo. Codex heartbeat automation dingous-parceiro-di-rio created ACTIVE for daily priorities/planning in this chat. It does not launch the avatar, synthesize audio or train automatically.
+
+
+## Complete project-local AI bootstrap — 2026-10-14
+
+Confirmed installed qwen3.5:4b and current loopback service. Added shared local_ai.py startup/installed-model checks for native CLI and web partner/lab generation. Cloud model names, URL-like names and remote metadata rejected. Hidden startup uses loopback and OLLAMA_NO_CLOUD=1, single parallel inference, no automatic downloads. Existing model selection/context/unload unchanged. Four bootstrap tests, four partner tests, eight lab tests and 19 web bridge tests PASS. Actual question generated a local response successfully, CLI exit 0; Validation/dingous-local-only-answer.json. Windows Tracker helpers copied/verified; no native assembly change required. Browser runtime visual E2E remains unperformed.
+
+Automatic review rejected combined project edits/global config/restart command without detailed reason, before execution. Implemented safe alternative entirely in project without stopping current Ollama or changing global settings. No global cloud-disable success claim. Codex daily follow-up is separate from application-local inference.

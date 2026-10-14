@@ -25,7 +25,7 @@ async function handshake() {
   token=session.token;worker?.postMessage({type:'token',token});return session;
 }
 async function api(path,body,retry=true) {
-  const response=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',signal:AbortSignal.timeout((path==='laboratory/generate'||path==='partner/ask')?95000:path==='camera/start'?12000:5000),headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',signal:AbortSignal.timeout((path==='laboratory/generate'||path==='partner/ask')?110000:path==='camera/start'?12000:5000),headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body)});
   let result;
   try{result=await response.json();}catch{throw new Error('A ponte local está indisponível. Tentando reconectar…');}
   if(response.status===403&&retry) {
