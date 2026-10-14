@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
@@ -216,6 +217,8 @@ namespace WebcamAvatar
         IEnumerator VerifyRig(StudioUI ui,string label)
         {
             var rig=ui.Vrm.Instance.Runtime.ControlRig;var packet=new TrackingFrame{pose=true,face=false,shapes=Array.Empty<Shape>(),rotation=Array.Empty<float>()};
+            var attachments=new Dictionary<Transform,Vector3>();
+            foreach(HumanBodyBones key in Enum.GetValues(typeof(HumanBodyBones))){var bone=rig.GetBoneTransform(key);if(bone!=null)attachments[bone]=bone.localPosition;}
             using(var udp=new UdpClient())foreach(bool mirror in new[]{false,true}){
                 ui.tracking.mirror=mirror;
                 var points=new Point[33];for(int i=0;i<33;i++)points[i]=new Point();
@@ -231,8 +234,10 @@ namespace WebcamAvatar
                     foreach(float height in new[]{-.3f,.3f}){
                         points[e]=P(points[s].x,points[s].y-height*.5f,-.12f);points[w]=P(points[s].x,points[s].y-height,-.2f);
                         yield return Send(udp,packet,ui.tracking.port,1.3f);
-                        Check((hand.position-upper.position).y*height>0,label+" arm raise/lower "+side+" "+height+" mirror "+mirror+" height "+(hand.position-upper.position).y+" observed "+(ui.tracking.PosePoints[s].y-ui.tracking.PosePoints[w].y)+" target "+(ui.Vrm.WristTargets[side].y-upper.position.y)+" alignment "+ui.Vrm.ArmAlignment(side==0));
+                        Check((hand.position-upper.position).y*height>0,label+" arm raise/lower "+side+" "+height+" mirror "+mirror+" height "+(hand.position-upper.position).y+" target "+(ui.Vrm.WristTargets[side].y-upper.position.y)+" alignment "+ui.Vrm.ArmAlignment(side==0)+" immediate "+ui.Vrm.ImmediateAlignment[side]);
                         Check(Vector3.Angle(lower.position-upper.position,hand.position-lower.position)<=151,label+" elbow anatomy "+side+" mirror "+mirror);
+                        Check(Vector3.Distance(hand.position,ui.Vrm.WristTargets[side])<.04f,label+" wrist endpoint within 4 cm "+side+" mirror "+mirror+" error "+Vector3.Distance(hand.position,ui.Vrm.WristTargets[side]));
+                        Check(StableMesh(ui.Vrm),label+" skinned vertices finite and bounded "+side+" mirror "+mirror);
                     }
                 }
                 var trackedHand=new Point[21];trackedHand[0]=P(0,0);
@@ -273,7 +278,20 @@ namespace WebcamAvatar
                 points[11].x+=.15f;points[12].x+=.15f;
                 yield return Send(udp,packet,ui.tracking.port,1.1f);
                 Check(Mathf.Abs((rig.GetBoneTransform(HumanBodyBones.Spine).rotation*Vector3.up).x)>.1f,label+" torso lean mirror "+mirror);
+                bool attached=true;foreach(var pair in attachments)attached&=Vector3.Distance(pair.Key.localPosition,pair.Value)<.00001f;
+                Check(attached,label+" joints retain their attachments mirror "+mirror);
             }
+        }
+        static bool StableMesh(VrmAvatarController avatar)
+        {
+            var hip=avatar.Instance.Runtime.ControlRig.GetBoneTransform(HumanBodyBones.Hips).position;
+            foreach(var renderer in avatar.Instance.GetComponentsInChildren<SkinnedMeshRenderer>()){
+                if(!renderer.enabled||!renderer.gameObject.activeInHierarchy)continue;
+                var mesh=new Mesh();renderer.BakeMesh(mesh);bool valid=true;
+                foreach(var vertex in mesh.vertices){var p=renderer.transform.TransformPoint(vertex);if(float.IsNaN(p.x)||float.IsNaN(p.y)||float.IsNaN(p.z)||float.IsInfinity(p.x)||float.IsInfinity(p.y)||float.IsInfinity(p.z)||Vector3.Distance(p,hip)>3){valid=false;break;}}
+                Destroy(mesh);if(!valid)return false;
+            }
+            return true;
         }
         static IEnumerator Send(UdpClient udp,TrackingFrame packet,int port,float duration){byte[] bytes=System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(packet));float start=Time.realtimeSinceStartup;while(Time.realtimeSinceStartup-start<duration){udp.Send(bytes,bytes.Length,"127.0.0.1",port);yield return null;}}
         static bool Enabled(VrmAvatarController vrm,string name){foreach(var r in vrm.Instance.GetComponentsInChildren<Renderer>())if(r.name.ToLowerInvariant().Contains(name))return r.enabled;return false;}

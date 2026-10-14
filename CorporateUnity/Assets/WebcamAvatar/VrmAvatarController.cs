@@ -28,6 +28,7 @@ namespace WebcamAvatar
         readonly Dictionary<Material,Color> originalColors=new Dictionary<Material,Color>();
         public CorporateAppearance Appearance {get;private set;}
         public readonly Vector3[] WristTargets=new Vector3[2];
+        public readonly float[] ImmediateAlignment=new float[2];
         public Vector2 ArmAlignment(bool left){var a=left?HumanBodyBones.LeftUpperArm:HumanBodyBones.RightUpperArm;var b=left?HumanBodyBones.LeftLowerArm:HumanBodyBones.RightLowerArm;var c=left?HumanBodyBones.LeftHand:HumanBodyBones.RightHand;return new Vector2(Vector3.Dot((bones[b].position-bones[a].position).normalized,trackedDirections[a]),Vector3.Dot((bones[c].position-bones[b].position).normalized,trackedDirections[b]));}
         public void ApplyAppearance() {
             if(Instance==null)return;
@@ -112,7 +113,10 @@ namespace WebcamAvatar
         static bool Valid(Point[] p,params int[] indices) {if(p==null)return false;foreach(int i in indices)if(i>=p.Length || p[i]==null || !Finite(p[i].confidence)||p[i].confidence<.55f||!Finite(p[i].x)||!Finite(p[i].y)||!Finite(p[i].z))return false;return true;}
         void Rotate(HumanBodyBones key,Quaternion target,float t,bool world=false) {
             if(!bones.TryGetValue(key,out var bone))return;
-            float step=snapPose?3600:(key.ToString().Contains("Arm")?360:480)*Time.unscaledDeltaTime;
+            // A child forearm must compensate shoulder rotation as well as
+            // its own flexion; using the upper-arm cap for both loses reach.
+            string name=key.ToString();
+            float step=snapPose?3600:(name.Contains("LowerArm")?720:name.Contains("UpperArm")?360:480)*Time.unscaledDeltaTime;
             if(world)bone.rotation=Quaternion.RotateTowards(bone.rotation,Quaternion.Slerp(bone.rotation,target,t),step);
             else bone.localRotation=Quaternion.RotateTowards(bone.localRotation,Quaternion.Slerp(bone.localRotation,target,t),step);
         }
@@ -172,13 +176,16 @@ namespace WebcamAvatar
                         // Wrist direction becomes unstable at the shoulder.
                         // The visible elbow provides the stable bend direction.
                         if(target.magnitude<minimum)target=pole.normalized*minimum;
+                        target=target.normalized*Mathf.Clamp(target.magnitude,minimum,lengthA+lengthB-.0001f);
                         WristTargets[left?0:1]=bones[upper].position+target;
                         SolveArm(target,pole,lengthA,lengthB,out var ikUpper,out var ikLower);
-                        var filteredUpper=FilterDirection(upper,ikUpper,true);
-                        Aim(upper,filteredUpper,t);
-                        var filteredLower=FilterDirection(lower,ikLower,true);
-                        filteredLower=Vector3.RotateTowards(filteredUpper,filteredLower,150*Mathf.Deg2Rad,0).normalized;
-                        trackedDirections[lower]=filteredLower;Aim(lower,filteredLower,t);return;
+                        // Filter landmarks, not each half of a solved chain:
+                        // independent direction filters break endpoint reach.
+                        trackedDirections[upper]=ikUpper;lastSeen[upper]=clock;Aim(upper,ikUpper,t);
+                        var actualUpper=(bones[lower].position-bones[upper].position).normalized;
+                        var actualLower=(WristTargets[left?0:1]-bones[lower].position).normalized;
+                        actualLower=Vector3.RotateTowards(actualUpper,actualLower,150*Mathf.Deg2Rad,0).normalized;
+                        trackedDirections[lower]=actualLower;lastSeen[lower]=clock;Aim(lower,actualLower,t);ImmediateAlignment[left?0:1]=ArmAlignment(left).y;return;
                     }
                 }
             }
