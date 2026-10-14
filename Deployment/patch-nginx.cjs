@@ -3,7 +3,7 @@ const configs=['/etc/nginx/nginx.conf'];
 for(const dir of ['/etc/nginx/conf.d','/etc/nginx/sites-enabled'])if(fs.existsSync(dir))for(const name of fs.readdirSync(dir))if(fs.statSync(path.join(dir,name)).isFile())configs.push(path.join(dir,name));
 const candidates=configs.map(file=>({file,source:fs.readFileSync(file,'utf8')})).filter(x=>/\blocation\s+\/\s*\{/.test(x.source));
 if(!candidates.length)throw new Error('No nginx root location found in '+configs.join(', '));
-const selected=candidates.find(x=>/server_name[^;]*dingous\.com\.br/.test(x.source))||candidates.find(x=>/chattrade_mvc|8081/.test(x.source))||candidates[0];
+const selected=candidates.find(x=>/chattrade_mvc|8081/.test(x.source))||candidates[0];
 const file=selected.file;let source=selected.source;
 const route=`
         location = /Games/Avatar { return 301 /Games/Avatar/; }
@@ -30,8 +30,8 @@ const route=`
 if(!source.includes('location ^~ /Games/Avatar/')){
   const starts=[...source.matchAll(/\bserver\s*\{/g)].map(m=>m.index);
   const servers=starts.map((start,i)=>({start,text:source.slice(start,starts[i+1]??source.length)})).filter(s=>/\blocation\s+\/\s*\{/.test(s.text));
-  let server=servers.find(s=>/server_name[^;]*dingous\.com\.br/.test(s.text));
-  if(!server)server=servers.find(s=>/proxy_pass\s+http:\/\/chattrade_mvc\b/.test(s.text));
+  let server=servers.find(s=>/proxy_pass\s+http:\/\/chattrade_mvc\b/.test(s.text));
+  if(!server)server=servers.find(s=>/server_name\s+(?:[^;]*\s)?dingous\.com\.br(?=\s|;)/.test(s.text));
   if(!server)throw new Error('Cannot identify Dingous MVC server: '+servers.map(s=>(s.text.match(/server_name[^;]+;/)||['unnamed'])[0]).join(' | '));
   if((server.text.match(/\blocation\s+\/\s*\{/g)||[]).length!==1)throw new Error('Ambiguous root inside Dingous server');
   const offset=server.start+server.text.search(/\blocation\s+\/\s*\{/);
