@@ -1,6 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$TextPath,
  [string]$VoiceName='Microsoft Daniel',
  [ValidateRange(-3,3)][int]$Rate=-1,
+ [ValidateRange(0,100)][int]$Volume=85,
  [string]$OutputPath)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Speech
@@ -12,7 +13,7 @@ try {
  if(!$dingousSelected){throw 'Instale uma voz local em português do Brasil nas configurações de fala do Windows.'}
  $dingousVoice.SelectVoice($dingousSelected.VoiceInfo.Name)
  $dingousVoice.Rate=$Rate
- $dingousVoice.Volume=85
+ $dingousVoice.Volume=$Volume
  if($OutputPath){$dingousVoice.SetOutputToWaveFile([IO.Path]::GetFullPath($OutputPath))}
  $dingousPrompt=New-Object System.Speech.Synthesis.PromptBuilder($dingousSelected.VoiceInfo.Culture)
  $dingousText=[IO.File]::ReadAllText($TextPath,[Text.Encoding]::UTF8)

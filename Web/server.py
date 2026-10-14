@@ -397,7 +397,8 @@ def handler_for(bridge, port):
                         elif path.endswith('/stop'):bridge.voice.stop(client)
                         self.reply(200,bridge.voice.status(client));return
                     elif path == '/api/partner/ask':
-                        ensure_local_ai()
+                        settings=dingous_partner.load_settings()
+                        if settings['backend']=='ollama':ensure_local_ai()
                         self.reply(200,dingous_partner.answer(body.get('question')));return
                     elif path == '/api/partner/remember':
                         self.reply(200,dict(saved=dingous_partner.remember(body.get('text'))));return

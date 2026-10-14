@@ -4,15 +4,19 @@ from pathlib import Path
 import numpy as np
 from dingous_partner import answer
 from local_ai import ensure_local_ai
+from partner_settings import load as load_settings,speak as speak_reply
 WAKE=re.compile(r'\b(?:dingous|dingus|dingos|dingo)\b',re.I)
-def wake_command(text):
+def wake_command(text,wake_word='Dingous'):
  normalized=''.join(c for c in unicodedata.normalize('NFD',text.lower()) if not unicodedata.combining(c))
- match=WAKE.search(normalized)
+ normalized_word=''.join(c for c in unicodedata.normalize('NFD',wake_word.lower()) if not unicodedata.combining(c))
+ pattern=WAKE if normalized_word=='dingous' else re.compile(r'\b'+re.escape(normalized_word)+r'\b',re.I)
+ match=pattern.search(normalized)
  return None if not match else text[match.end():].strip(' ,.!?:;')
 def listen():
  import sounddevice as sd
  from faster_whisper import WhisperModel
  parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--seconds',type=float,default=0);args=parser.parse_args()
+ settings=load_settings()
  root=Path(__file__).parent/'models/whisper';model=WhisperModel('base',device='cpu',compute_type='int8',download_root=str(root),local_files_only=True,cpu_threads=4)
  packets=queue.Queue(maxsize=200)
  def callback(data,frames,timing,status):
@@ -34,15 +38,17 @@ def listen():
    try:
     segments,_=model.transcribe(sample,language='pt',beam_size=3,initial_prompt='Dingous é o nome do assistente pessoal.',vad_filter=True)
     text=' '.join(s.text for s in segments if s.no_speech_prob<.6).strip()
-    command=wake_command(text)
+    command=wake_command(text,settings['wakeWord'])
     if command is None and not wasActive:continue
     if command is not None and not command:activeUntil=time.monotonic()+8;print('WAKE|Dingous ativado. Faça sua pergunta.',flush=True);continue
     question=command if command is not None else text
     if not question:continue
-    activeUntil=0;print('QUESTION|'+question,flush=True);print('LISTEN|Microfone pausado enquanto Dingous responde',flush=True);ensure_local_ai();result=answer(question)
+    activeUntil=0;print('QUESTION|'+question,flush=True);print('LISTEN|Microfone pausado enquanto Dingous responde',flush=True);settings=load_settings()
+    if settings['backend']=='ollama':ensure_local_ai()
+    result=answer(question)
     path=Path(args.output);path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');print('ANSWER|'+str(path),flush=True)
     speechPath=path.with_suffix('.txt');speechPath.write_text(result['answer'],encoding='utf-8')
-    subprocess.run(['powershell.exe','-NoProfile','-File',str(Path(__file__).with_name('dingous_speak.ps1')),'-TextPath',str(speechPath)],check=True)
+    speak_reply(speechPath,settings)
    except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
    finally:
     while not packets.empty():packets.get_nowait()
