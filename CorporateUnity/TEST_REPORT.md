@@ -200,3 +200,12 @@ User confirmed both sides green in the updated local preview. Actual Cartoon cap
 First Corporate capture FAIL: both head proximity and hand curl passed, but one source arm excursion was 0.180 m vs >0.25 m required (other 0.364 m). Avatar head minima 0.213 / 0.248 m. Evidence preserved in Validation/corporate-framing-first-result.json. Second Corporate capture FAIL with no detected hands, 561 pose samples and 557 / 560 estimated wrists outside the image. No accepted arm/head observations were available. This second capture cannot validate the requested gestures. Both receivers delivered 1801 frames at 30.02 FPS.
 
 No movement code or thresholds changed during these captures. No raw webcam images saved. Main/master updated with results; complete two-model physical E2E remains unapproved, as does the previously failed photo-reference synthetic check.
+
+
+## Corporate real Webcam 0 PASS — 2026-10-14
+
+User requested another physical E2E and main push. Current Corporate runtime passed unchanged thresholds with Webcam 0 and local framing preview: exit 0, CORPORATE_LIVE_RESULT=True, 1026 unique pose packets, 186 / 356 hand samples. Avatar wrist-to-head minima 0.181 / 0.153 m; source arm height excursions 0.479 / 0.409 m; tracked finger curl excursions 76.2 / 66.0 degrees; avatar curl excursions 78.0 / 65.7 degrees. OBS DirectShow received 1801 frames over 60.01 s at 1280x720 / 30.01 FPS. Source wrists still had low-confidence/out-of-frame periods; the run validates aggregate requested gestures under observed conditions, not uninterrupted tracking or perfect isolated fingers. No raw webcam images saved.
+
+Both models now have successful actual physical gesture captures (Cartoon documented above, Corporate in this capture). Their arm/hand retarget implementation is shared; no new rig animation defect was reproduced, so no speculative motion change was made. Existing corrections were validated. This does not resolve the separate photo-reference check failure or certify all distortion/jitter conditions.
+
+Fixed runner evidence bug: Cartoon capture no longer overwrites corporate-camera-result.json; each model writes its own result and failure message references it. Native binaries remain the already updated builds. Evidence: Validation/corporate-camera-result.json and Validation/corporate-live-player.log.

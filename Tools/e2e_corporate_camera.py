@@ -64,10 +64,9 @@ try:
               'faceSeen':'face=True' in text, 'poseSeen':'pose=True' in text, 'handsSeen':'hands=True' in text}
     if gestures:
         result['gestureAudit'] = json.loads((ROOT / 'CorporateUnity/Validation/corporate-gesture-audit.json').read_text(encoding='utf-8'))
-    (ROOT / 'Validation/corporate-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     (ROOT / f'Validation/{avatar_model}-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result))
-    assert passed, 'Unity hardware/gesture checks failed; see corporate-camera-result.json'
+    assert passed, f'Unity hardware/gesture checks failed; see {avatar_model}-camera-result.json'
 finally:
     if receiver is not None:
         receiver.release()
