@@ -30,3 +30,6 @@ vrm-*.log
 # Unity editor recovery files (kept locally)
 /Assets/_Recovery/
 /Assets/_Recovery.meta
+
+# Local fine-tuning outputs and private datasets
+/training/

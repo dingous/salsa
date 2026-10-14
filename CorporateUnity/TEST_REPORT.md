@@ -256,3 +256,12 @@ Recovered nulled Git index/main refs and TEST_REPORT tail discovered during this
 ## Machine-specific Ollama tuning — 2026-10-14
 
 Detected i9-14900HX, RTX 4070 Laptop 8188 MiB, 31.7 GB RAM. Installed official qwen3.5:4b (3.3 GB), retained qwen2.5:3b. Default changed for shared native/web generator. Options context 2048, max output 768 tokens, temperature .2, thinking false, unload on completion (keep_alive=0). Actual local Portuguese request generated valid smile/wink_left/wave_right/neutral plan in 31.05 s, peak total VRAM 5221 MiB vs 1512 MiB baseline. ollama ps reported 100% GPU, context 2048. Evidence Validation/dingous-qwen35-benchmark.json. Updated UI labels/docs, rebuilt Windows. Eight generator/config validation tests PASS. This was not exhaustive 'best model' benchmarking or a simultaneous webcam/render FPS test.
+
+
+## Dingous partner mode and daily follow-up — 2026-10-14
+
+Added Webcam/Partner mode choice for both Windows models and web. Partner asks local Qwen3.5:4b and answers text + Windows System.Speech; Portuguese installed voices confirmed (Maria/Daniel). Web uses localService pt-BR speechSynthesis voice only, with visible unavailable message. Questions are typed; voice input and measured lip sync were not added. Explicit preference memory and approved JSONL training examples live outside repository under LOCALAPPDATA/Dingous/Partner. Four memory/answer/approval tests PASS, 19 bridge tests PASS including partner route. Actual Ollama reply + audible speech process test exited 0. Native --partner-only tests on both rigs completed question/answer/speech and reviewed panel screenshot; final checks also require full displayed response equals saved JSON, after fixing inherited 48-character field limit. Logs Validation/dingous-partner-native.log / dingous-partner-final.log.
+
+Experimental QLoRA trainer source Tools/train_dingous_lora.py prepared for separate CUDA environment. Compilation checked; training dependencies/runtime and adapter import not validated, no approved dataset or fine-tuning executed. Memory is not model learning. Keep this distinction in UI/docs. No claim of GPU training fitting 8GB. Training outputs ignored by Git. Windows packages refreshed with partner script and speech helper. Web browser visual/audio E2E not performed.
+
+User requested every day, chose 09h São Paulo. Codex heartbeat automation dingous-parceiro-di-rio created ACTIVE for daily priorities/planning in this chat. It does not launch the avatar, synthesize audio or train automatically.

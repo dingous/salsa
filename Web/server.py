@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT.parent
 sys.path.insert(0,str(PROJECT / 'Tracker'))
 import dingous_lab
+import dingous_partner
 VERSION = 2
 REVISION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 TOKEN = secrets.token_urlsafe(32)
@@ -387,7 +388,13 @@ def handler_for(bridge, port):
                     body = json.loads(data)
                     if not isinstance(body, dict):
                         raise ValueError('A operação precisa de um objeto JSON.')
-                    if path == '/api/laboratory/generate':
+                    if path == '/api/partner/ask':
+                        self.reply(200,dingous_partner.answer(body.get('question')));return
+                    elif path == '/api/partner/remember':
+                        self.reply(200,dict(saved=dingous_partner.remember(body.get('text'))));return
+                    elif path == '/api/partner/approve':
+                        self.reply(200,dict(dataset=dingous_partner.approve(body)));return
+                    elif path == '/api/laboratory/generate':
                         plan=dingous_lab.validate(dingous_lab.DEMO) if body.get('demo') is True else dingous_lab.generate(body.get('prompt',''))
                         self.reply(200,dict(plan=plan,frames=list(dingous_lab.frames(plan)),source='programmed-demo' if body.get('demo') is True else 'ollama-local'))
                         return

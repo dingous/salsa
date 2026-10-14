@@ -13,6 +13,7 @@ namespace WebcamAvatar
     [DefaultExecutionOrder(13000)]
     public sealed class CorporateSmoke : MonoBehaviour
     {
+        [Serializable] class PartnerContent {public string answer;}
         bool failed;
         GestureAudit activeAudit;
         StudioUI auditUi;
@@ -31,6 +32,23 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--partner-only")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    Call(ui,"ShowPartner");
+                    var question=(InputField)ui.GetType().GetField("partnerQuestion",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);question.text="Apresente-se como Dingous em uma única frase curta.";
+                    Call(ui,"RunPartner","--question");float deadline=Time.realtimeSinceStartup+100;
+                    var jobField=ui.GetType().GetField("partnerJob",BindingFlags.NonPublic|BindingFlags.Instance);
+                    while(jobField.GetValue(ui)!=null&&Time.realtimeSinceStartup<deadline)yield return null;
+                    var response=(InputField)ui.GetType().GetField("partnerAnswer",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
+                    Check((bool)ui.GetType().GetField("partnerSucceeded",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui)&&jobField.GetValue(ui)==null&&response.text!="Dingous está pensando…"&&response.text.Length>10,"Partner answer and speech process completed model "+mode);
+                    string replyPath=(string)ui.GetType().GetField("partnerLast",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
+                    Check(response.text==JsonUtility.FromJson<PartnerContent>(File.ReadAllText(replyPath)).answer,"Full partner response displayed model "+mode);
+                    yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(Application.temporaryCachePath,"dingous-partner-"+mode+".png")));
+                    Call(ui,"StopPartner");Call(ui,"ShowPage",3);
+                }
+                Debug.Log("CORPORATE_PARTNER_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--lab-only")>=0){
                 foreach(int mode in new[]{0,1}){
                     Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;ui.avatar.previewAnimation=false;

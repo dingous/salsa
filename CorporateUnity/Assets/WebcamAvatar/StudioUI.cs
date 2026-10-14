@@ -28,6 +28,8 @@ namespace WebcamAvatar
         InputField nameField;
         RawImage referenceImage, avatarImage;
         GameObject photoPlaceholder;
+        LocalJob partnerJob;InputField partnerQuestion,partnerAnswer;string partnerLast;bool partnerSucceeded,partnerMode;
+        [Serializable] class PartnerReply {public string question,answer;}
         LocalJob laboratory;
         InputField laboratoryPrompt;
         Texture2D reference;
@@ -219,8 +221,32 @@ namespace WebcamAvatar
             Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
             Button("Laboratório Dingous",parent,24,466,156,30,ShowLaboratory);
             Button("Restaurar cores",parent,190,466,156,30,()=>{Vrm.ResetAppearance();SetStatus("Cores originais restauradas.");});
-            Label("MakeHuman / MPFB · assets CC0\nModelo humano com expressões ARKit",parent,24,500,322,44,11,muted);
+            Dropdown(new[]{"Modo: Webcam","Modo: Parceiro Dingous"},parent,24,504,322,34,i=>{if(i==1)ShowPartner();else{partnerMode=false;StopPartner();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);SetStatus("Modo Webcam. Inicie o rastreamento em Transmissão.");}});
         }
+        void ShowPartner(){
+            StopLaboratory();if(trackerJob!=null)ToggleTracking();partnerMode=true;
+            if(advancedPanel!=null)Destroy(advancedPanel);
+            advancedPanel=Panel("Parceiro Dingous",responsive.Content,116,256,370,558,panel).gameObject;
+            Label("PARCEIRO DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
+            Label("IA local · resposta em áudio · memória explícita. A webcam não é usada neste modo.",advancedPanel.transform,24,68,322,55,13,muted);
+            partnerQuestion=Input("Sua dúvida ou preferência",advancedPanel.transform,24,134,322,66);partnerQuestion.lineType=InputField.LineType.MultiLineNewline;partnerQuestion.characterLimit=2000;
+            partnerAnswer=Input("Resposta do Dingous",advancedPanel.transform,24,212,322,128);partnerAnswer.lineType=InputField.LineType.MultiLineNewline;partnerAnswer.readOnly=true;partnerAnswer.characterLimit=0;partnerAnswer.textComponent.alignment=TextAnchor.UpperLeft;partnerAnswer.text="Pergunte algo para começar.";
+            Button("Perguntar e ouvir",advancedPanel.transform,24,352,322,40,()=>RunPartner("--question"),true);
+            Button("Guardar preferência",advancedPanel.transform,24,402,322,32,()=>RunPartner("--remember"));
+            Button("Aprovar para fine-tuning",advancedPanel.transform,24,442,322,32,()=>RunPartner("--approve"));
+            Button("Parar áudio",advancedPanel.transform,24,484,154,32,StopPartner);
+            Button("Fechar",advancedPanel.transform,190,484,156,32,()=>{StopPartner();Destroy(advancedPanel);advancedPanel=null;});responsive.LayoutAdvanced();
+        }
+        void RunPartner(string operation){
+            if(partnerJob!=null){SetStatus("Aguarde a resposta ou pare o áudio.");return;}
+            try {
+                if(operation=="--approve"&&string.IsNullOrEmpty(partnerLast)){SetStatus("Receba uma resposta antes de aprovar.");return;}
+                var args=new List<string>{operation,operation=="--approve"?partnerLast:partnerQuestion.text};
+                if(operation=="--question"){partnerLast=Path.Combine(Storage,"Partner",Guid.NewGuid().ToString("N")+".json");args.Add("--output");args.Add(partnerLast);args.Add("--speak");partnerAnswer.text="Dingous está pensando…";}
+                partnerSucceeded=false;partnerJob=new LocalJob("dingous_partner.py",args.ToArray());
+            }catch(Exception e){SetStatus(e.Message,true);}
+        }
+        void StopPartner(){if(partnerJob!=null){partnerJob.Dispose();partnerJob=null;SetStatus("Parceiro interrompido.");}}
         void ShowLaboratory(){
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Laboratório Dingous",responsive.Content,116,256,370,558,panel).gameObject;
@@ -234,7 +260,7 @@ namespace WebcamAvatar
             Label("Modelos Cartoon e Corporativo. Planos salvos localmente em Laboratory. Para IA: Ollama + qwen3.5:4b.",advancedPanel.transform,24,454,322,76,12,muted);responsive.LayoutAdvanced();
         }
         void StartLaboratory(bool demo){
-            StopLaboratory();if(trackerJob!=null)ToggleTracking();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
+            StopPartner();StopLaboratory();if(trackerJob!=null)ToggleTracking();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
             try{
                 string path=Path.Combine(Storage,"Laboratory",DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".json");
                 var args=new List<string>{"--port",tracking.port.ToString(),"--output",path};
@@ -542,7 +568,7 @@ namespace WebcamAvatar
 
         void ToggleTracking()
         {
-            StopLaboratory();
+            partnerMode=false;StopPartner();StopLaboratory();
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
             try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
             catch(Exception e){SetStatus(e.Message,true);}
@@ -638,6 +664,13 @@ namespace WebcamAvatar
         {
             if(canvas==null)return;
             if(rebuildPending && Time.unscaledTime-lastDetailChange>.18f){avatar.Rebuild(avatar.Profile);rebuildPending=false;}
+            if(partnerJob!=null){
+                while(partnerJob.Output.TryDequeue(out string partnerLine)){
+                    if(partnerLine.StartsWith("ANSWER|")&&partnerAnswer!=null){var reply=JsonUtility.FromJson<PartnerReply>(File.ReadAllText(partnerLine.Substring(7)));partnerAnswer.text=reply.answer;SetStatus("Resposta em áudio local.");}
+                    else if(partnerLine.StartsWith("READY|"))SetStatus(partnerLine.Substring(6));
+                }
+                if(partnerJob.Finished){partnerSucceeded=partnerJob.ExitCode==0;if(partnerJob.ExitCode!=0)SetStatus(partnerJob.FriendlyError("Falha no parceiro Dingous."),true);partnerJob.Dispose();partnerJob=null;}
+            }
             if(laboratory!=null){
                 while(laboratory.Output.TryDequeue(out string labLine))if(labLine.StartsWith("READY|"))SetStatus(labLine.Substring(6)+" · executando no avatar.");
                 if(laboratory.Finished){string result=laboratory.ExitCode==0?"Sequência concluída. Plano salvo na biblioteca de testes.":laboratory.FriendlyError("Falha no laboratório Dingous.");bool error=laboratory.ExitCode!=0;laboratory.Dispose();laboratory=null;SetStatus(result,error);}
@@ -648,7 +681,7 @@ namespace WebcamAvatar
             if(presentation){var target=avatarCamera.targetTexture;avatarCamera.targetTexture=output;avatarCamera.Render();avatarCamera.targetTexture=target;}
             int hands=(tracking.GetHand(true)!=null?1:0)+(tracking.GetHand(false)!=null?1:0);
             bool partialHand=(tracking.GetHand(true)!=null && !tracking.HandComplete(true)) || (tracking.GetHand(false)!=null && !tracking.HandComplete(false));
-            trackingStatus.text=avatar.freeze?"AVATAR PAUSADO":avatar.previewAnimation?"PRÉVIA ANIMADA":tracking.Connected?$"{(tracking.FaceDetected?"ROSTO":"SEM ROSTO")} • {hands} MÃOS{(partialHand?"*":"")} • {(tracking.FullBodyDetected?"CORPO":"PARCIAL")}":"PRÉVIA • WEBCAM DESLIGADA";
+            trackingStatus.text=partnerMode?"PARCEIRO DINGOUS · IA LOCAL":avatar.freeze?"AVATAR PAUSADO":avatar.previewAnimation?"PRÉVIA ANIMADA":tracking.Connected?$"{(tracking.FaceDetected?"ROSTO":"SEM ROSTO")} • {hands} MÃOS{(partialHand?"*":"")} • {(tracking.FullBodyDetected?"CORPO":"PARCIAL")}":"PRÉVIA • WEBCAM DESLIGADA";
             if(trackerJob!=null && trackerJob.Finished){string message=trackerJob.FriendlyError("O rastreamento foi encerrado.");trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus(message,true);}
             if(cameraJob!=null){
                 while(cameraJob.Output.TryDequeue(out string line))if(line.StartsWith("READY|")){broadcaster.Begin();cameraStatus.text="Selecione OBS Virtual Camera na chamada";SetStatus("Câmera virtual pronta. O vídeo contém apenas o avatar.");}
@@ -659,7 +692,7 @@ namespace WebcamAvatar
         void OnDestroy()
         {
             generator?.Dispose();trackerJob?.Dispose();broadcaster?.Stop();cameraJob?.Dispose();
-            if(laboratory!=null)laboratory.Dispose();if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
+            if(partnerJob!=null)partnerJob.Dispose();if(laboratory!=null)laboratory.Dispose();if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
             if(backdrop!=null)Destroy(backdrop);
             foreach(var texture in uiTextures)Destroy(texture);
         }

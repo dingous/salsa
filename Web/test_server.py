@@ -54,6 +54,11 @@ class BridgeTests(unittest.TestCase):
     def auth(self, client='tab-a'):
         return {'X-Avatar-Token': server.TOKEN, 'X-Avatar-Client': client}
 
+    def test_partner_reply_has_no_training_claim(self):
+        with patch.object(server.dingous_partner,'answer',return_value={'question':'Oi','answer':'Ola','fineTuned':False}):
+            with self.request('/api/partner/ask',b'{"question":"Oi"}',self.auth()) as response: result=json.loads(response.read())
+            self.assertEqual(result['answer'],'Ola');self.assertFalse(result['fineTuned'])
+
     def test_laboratory_demo_is_explicit_and_finite(self):
         with self.request('/api/laboratory/generate',json.dumps({'demo':True}).encode(),self.auth()) as response: result=json.loads(response.read())
         self.assertEqual(result['source'],'programmed-demo');self.assertEqual(len(result['frames']),540)

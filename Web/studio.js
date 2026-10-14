@@ -25,7 +25,7 @@ async function handshake() {
   token=session.token;worker?.postMessage({type:'token',token});return session;
 }
 async function api(path,body,retry=true) {
-  const response=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',signal:AbortSignal.timeout(path==='laboratory/generate'?95000:path==='camera/start'?12000:5000),headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetch('/api/'+path,{method:body===undefined?'GET':'POST',signal:AbortSignal.timeout((path==='laboratory/generate'||path==='partner/ask')?95000:path==='camera/start'?12000:5000),headers:{'X-Avatar-Token':token,'X-Avatar-Client':client,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body)});
   let result;
   try{result=await response.json();}catch{throw new Error('A ponte local está indisponível. Tentando reconectar…');}
   if(response.status===403&&retry) {
@@ -140,3 +140,12 @@ async function generateLaboratory(demo){
  try{const result=await api('laboratory/generate',{prompt:$('labPrompt').value,demo});if(generation!==labGeneration)return;$('demo').checked=false;send('demo',false);worker?.postMessage({type:'laboratory',frames:result.frames});$('labState').textContent=result.source==='ollama-local'?'Plano gerado por IA local · reproduzindo':'Demonstração programada · reproduzindo';const blob=new Blob([JSON.stringify(result.plan,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='dingous-plan.json';link.textContent='Salvar plano';$('labState').append(' ',link);link.onclick=()=>setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){$('labState').textContent=error.message;}finally{labBusy=false;$('labGenerate').disabled=$('labDemo').disabled=false;}
 }
 $('labGenerate').onclick=()=>generateLaboratory(false);$('labDemo').onclick=()=>generateLaboratory(true);$('labStop').onclick=()=>{labGeneration++;worker?.postMessage({type:'laboratory',frames:[]});$('labState').textContent='Teste encerrado';};
+
+let partnerResult=null,partnerBusy=false;
+$('runMode').onchange=()=>{const mode=$('runMode').value;$('partnerPanel').open=mode==='partner';if(mode==='partner'&&tracking){$('runMode').value='webcam';status('Pare a webcam antes de entrar no modo parceiro.',true);}else if(mode==='partner'){send('laboratory',[]);$('demo').checked=true;send('demo',true);}else{speechSynthesis.cancel();send('demo',false);}};
+$('partnerAsk').onclick=async()=>{if(partnerBusy)return;if($('runMode').value!=='partner'){status('Escolha o modo Avatar · Parceiro Dingous.',true);return;}partnerBusy=true;$('partnerAsk').disabled=true;$('partnerAnswer').textContent='Dingous está pensando localmente…';try{partnerResult=await api('partner/ask',{question:$('partnerQuestion').value});$('partnerAnswer').textContent=partnerResult.answer;$('partnerApprove').disabled=false;const speech=new SpeechSynthesisUtterance(partnerResult.answer);speech.lang='pt-BR';speech.voice=speechSynthesis.getVoices().find(v=>v.lang==='pt-BR'&&v.localService)||null;if(!speech.voice){$('partnerAnswer').textContent+=' Voz local pt-BR indisponível neste navegador.';return;}speechSynthesis.cancel();speechSynthesis.speak(speech);}catch(e){$('partnerAnswer').textContent=e.message;}finally{partnerBusy=false;$('partnerAsk').disabled=false;}};
+$('partnerRemember').onclick=async()=>{try{await api('partner/remember',{text:$('partnerQuestion').value});$('partnerAnswer').textContent='Preferência salva na memória local.';}catch(e){$('partnerAnswer').textContent=e.message;}};
+$('partnerApprove').onclick=async()=>{if(partnerResult)try{await api('partner/approve',partnerResult);$('partnerAnswer').textContent='Exemplo aprovado para o conjunto de treinamento. Modelo ainda não treinado.';}catch(e){$('partnerAnswer').textContent=e.message;}};
+$('partnerStop').onclick=()=>speechSynthesis.cancel();
+
+if(typeof speechSynthesis!=="undefined")speechSynthesis.getVoices();

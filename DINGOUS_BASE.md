@@ -21,3 +21,13 @@ Oito testes Python cobrem validação, limites, finitude, pacotes e piscadas ind
 
 ## Configuração desta máquina
 Intel Core i9-14900HX, RTX 4070 Laptop 8 GB, aproximadamente 32 GB RAM. Modelo padrão qwen3.5:4b (3,3 GB instalado), contexto 2048, máximo 768 tokens, temperature 0.2, think=false e keep_alive=0. A geração é assíncrona e descarrega o modelo ao concluir, liberando VRAM para render e webcam. Teste local: plano válido em 31,05 segundos incluindo carregamento/descarga; pico total de VRAM 5221 MiB, base 1512 MiB, execução 100% GPU. Este é um teste representativo, não uma comparação exaustiva de modelos nem garantia de FPS sob toda carga. qwen2.5:3b foi preservado como alternativa via DINGOUS_AI_MODEL. Evidência: Validation/dingous-qwen35-benchmark.json.
+
+
+## Dois modos: Webcam e Parceiro
+Windows: Modelo VRM → Modo → Webcam ou Parceiro Dingous. Webcam segue seu rosto/corpo. Parceiro interrompe o rastreamento e recebe perguntas digitadas; responda com Perguntar e ouvir. Os dois modelos usam o mesmo backend. Windows reproduz usando a voz pt-BR instalada via System.Speech; web usa voz pt-BR local do navegador e informa quando ela não estiver disponível. Não há reconhecimento de fala de entrada nem sincronização fonética medida nesta etapa.
+
+Guardar preferência armazena somente o texto escolhido em %LOCALAPPDATA%/Dingous/Partner/memory.json. Memória é contexto usado nas respostas; não modifica pesos do modelo. Aprovar para fine-tuning adiciona a pergunta/resposta ao arquivo approved-training.jsonl nesse mesmo diretório. Não são adicionados automaticamente exemplos não aprovados.
+
+Treinamento real: Tools/train_dingous_lora.py oferece pipeline experimental QLoRA para Qwen/Qwen3.5-4B. Use ambiente CUDA separado com torch, transformers, datasets, peft, trl, bitsandbytes. --validate-only valida o conjunto sem carregar modelo. Execução de treinamento, consumo de VRAM e importação do adaptador no Ollama não foram validados; o desempenho de inferência de 4B não garante treinamento dentro dos 8GB. Treine depois de aprovar exemplos úteis, avalie em perguntas separadas e só então converta/ative o resultado. O script não substitui automaticamente o modelo atual. Nenhum fine-tuning foi realizado nesta implementação.
+
+Acompanhamento diário às 09h (São Paulo) criado no Codex nesta conversa. Não é alarme do executável Windows e não inicia/fala o avatar sozinho. A tarefa revê prioridades e pendências, sem autorizar operações externas ou treinamento automático.

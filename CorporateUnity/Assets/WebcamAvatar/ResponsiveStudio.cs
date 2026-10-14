@@ -120,7 +120,7 @@ namespace WebcamAvatar
         }
         public void LayoutAdvanced() {
             if(content==null)return;
-            var panel=(content.Find("Ajustes avançados")??content.Find("Laboratório Dingous")) as RectTransform;if(panel==null)return;
+            var panel=(content.Find("Ajustes avançados")??content.Find("Laboratório Dingous")??content.Find("Parceiro Dingous")) as RectTransform;if(panel==null)return;
             var page=nodes.Find(r=>r.name=="Página 0");panel.localScale=page.localScale;Place(panel,page.anchoredPosition.x,-page.anchoredPosition.y,370,558);panel.SetAsLastSibling();
         }
     }
