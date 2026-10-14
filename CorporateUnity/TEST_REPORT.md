@@ -164,3 +164,11 @@ New native checks require wrist endpoint error under 4 cm for raises/lowers, bak
 Final rebuilt application: 658 checks passed, exit 0, CORPORATE_RESULT=True. Log: Validation/motion-geometry-final.log. Updated CorporateUnity/Build, Build/AvatarStudio.exe and publish/Windows/AvatarStudio.exe, with model/assembly hashes checked by the publisher. A cleanup of generated duplicate executable/data files was rejected by automatic review without a detailed reason; the copies were preserved and updated instead.
 
 Geometry tests detect broken attachments, invalid values and gross skinning explosions. They do not detect every mesh self-intersection, cloth/skin penetration, occlusion error, or camera/lighting condition. The new real-camera gesture test still requires the user's participation; no new physical-camera motion PASS is claimed for these changes.
+
+## Real camera follow-up — 2026-10-14
+
+Both physical-camera runs used current binaries, 75-second gesture windows, no synthetic preview. Each OBS DirectShow receiver captured 1801 frames over 60 seconds at 1280x720 / 30.02 FPS; face, pose and hands were detected. Both complete gesture audits returned FAIL and are not approved.
+
+Cartoon: one tracked wrist approached the nose at 0.194 m and avatar head pivot at 0.150 m; the other wrist/head gesture and arm excursion were not recorded with sufficient confidence. Detected finger curl excursions were only 11.6 / 3.0 degrees, below the required 20 degrees. Corporate: both head-reach gestures recorded (avatar head-pivot distances 0.285 / 0.194 m). One arm excursion was only 0.127 m (minimum 0.25 m); one hand curl excursion was only 12.7 degrees (minimum 20 degrees). The other arm/hand met those criteria.
+
+These results do not establish whether missing coverage arose from framing, detector confidence, gesture execution or side assignment. No threshold was relaxed and no detection data was invented. Wider framing and a side-by-side repeat were requested. Artifacts: Validation/cartoon-camera-result.json, Validation/corporate-camera-result.json, Validation/cartoon-live-player.log, Validation/corporate-live-player.log. Raw webcam images were not saved.
