@@ -50,8 +50,9 @@ export function runMotionChecks(rig,THREE) {
     gestures.leftHand=Array.from({length:21},(_,i)=>({x:i===0?0:((i-1)%4+1)*.025,y:0,z:0,confidence:1}));
     settle(gestures);
     if(rig.vrm.expressionManager){
-      check(label+': pisca o olho correspondente',rig.vrm.expressionManager.getValue(mirror?'blinkRight':'blinkLeft')>.9&&rig.vrm.expressionManager.getValue(mirror?'blinkLeft':'blinkRight')<.1);
-      check(label+': abertura da boca preservada',rig.vrm.expressionManager.getValue('aa')>.9);
+      const custom=!!rig.vrm.expressionManager.getExpression('jawOpen'),left=custom?'eyeBlinkLeft':'blinkLeft',right=custom?'eyeBlinkRight':'blinkRight';
+      check(label+': pisca o olho correspondente',rig.vrm.expressionManager.getValue(mirror?right:left)>.9&&rig.vrm.expressionManager.getValue(mirror?left:right)<.1);
+      check(label+': abertura da boca preservada',rig.vrm.expressionManager.getValue(custom?'jawOpen':'aa')>.9);
     }
     for(const finger of ['Thumb','Index','Middle','Ring','Little']) {
       const first=finger==='Thumb'?'Metacarpal':'Proximal',second=finger==='Thumb'?'Proximal':'Intermediate';

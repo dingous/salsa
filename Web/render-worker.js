@@ -3,16 +3,16 @@ import {GLTFLoader} from './vendor/three/package/examples/jsm/loaders/GLTFLoader
 import {VRMLoaderPlugin,VRMUtils} from './vendor/three-vrm/package/lib/three-vrm.module.js';
 import {AvatarRig} from './rig.js';
 import {countHands} from './tracking-utils.js';
+import {HumanAppearance} from './makehuman-appearance.js';
 
 let renderer,scene,camera,loader,vrm,rig,token='',client='',cameraSession=null,frame=null,demo=false,virtual=false,sending=false,framingMode='bust',elapsed=0,previous=performance.now(),version=0,renderFailed=false;
 let failedSince=0,nextSend=0;
 let presentationMode='professional',keyLight,fillLight;
 let mirrored=true,hosted=false;
 let appearanceColors={},originalMaterials=new Map();
+let humanAppearance,humanSettings={};
 function applyAppearance(){
-  for(const [material,original] of originalMaterials){const name=material.name.toLowerCase();const key=name.includes('hair')?'hair':name.includes('eye')&&!name.includes('trans')?'eyes':/huku|cloth|outfit/.test(name)?'outfit':/body_bake|skin/.test(name)?'skin':null;
-    material.color.copy(original);if(key&&/^#[0-9a-f]{6}$/i.test(appearanceColors[key]||''))material.color.set(appearanceColors[key]);
-  }
+  vrm?.scene.traverse(mesh=>{if(!mesh.isMesh)return;for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material]){if(!material.color)continue;material.userData.avatarOriginalColor??=material.color.clone();const name=material.name.toLowerCase();const key=name.includes('hair')?'hair':name.includes('eye')&&!name.includes('trans')?'eyes':/huku|cloth|outfit/.test(name)?'outfit':/body_bake|skin/.test(name)?'skin':null;material.color.copy(material.userData.avatarOriginalColor);if(key&&/^#[0-9a-f]{6}$/i.test(appearanceColors[key]||''))material.color.set(appearanceColors[key]);}});
 }
 function backdrop(value) {
   if(scene.background?.isTexture)scene.background.dispose();
@@ -48,10 +48,11 @@ async function load(source) {
     candidate.scene.updateMatrixWorld(true);
     const bounds=new THREE.Box3().setFromObject(candidate.scene),height=bounds.getSize(new THREE.Vector3()).y;if(height<.1)throw new Error('O modelo não contém uma malha visível.');
     candidate.scene.scale.multiplyScalar(2.1/height);candidate.scene.position.y=-bounds.min.y*2.1/height;candidate.scene.updateMatrixWorld(true);
-    if(vrm){scene.remove(vrm.scene);VRMUtils.deepDispose(vrm.scene);}vrm=candidate;scene.add(vrm.scene);
+    if(vrm){humanAppearance?.dispose();scene.remove(vrm.scene);VRMUtils.deepDispose(vrm.scene);}vrm=candidate;scene.add(vrm.scene);
+    humanAppearance=new HumanAppearance(vrm);humanAppearance.apply(humanSettings);
     originalMaterials.clear();vrm.scene.traverse(node=>{if(node.isMesh)for(const material of Array.isArray(node.material)?node.material:[node.material])if(material?.color&&!originalMaterials.has(material))originalMaterials.set(material,material.color.clone());});applyAppearance();
     rig=new AvatarRig(vrm);rig.setMirror(mirrored);rig.expressionScale=presentationMode==='corporate'?.75:1;framing();
-    message('loaded',{name:vrm.meta?.name||vrm.meta?.title||'Meu avatar VRM',authors:vrm.meta?.authors?.join(', ')||vrm.meta?.author||'Autor informado no arquivo',expressions:vrm.expressionManager?.expressions.length||0});
+    message('loaded',{makehuman:humanAppearance.available,name:vrm.meta?.name||vrm.meta?.title||'Meu avatar VRM',authors:vrm.meta?.authors?.join(', ')||vrm.meta?.author||'Autor informado no arquivo',expressions:vrm.expressionManager?.expressions.length||0});
   }catch(error){if(candidate&&candidate!==vrm)VRMUtils.deepDispose(candidate.scene);message('error',{error:error.message});}
 }
 async function poll() {
@@ -62,7 +63,7 @@ async function poll() {
 async function tick() {
   if(renderFailed)return;
   const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;elapsed+=dt;
-  try{rig?.update(frame,dt,demo,elapsed);renderer.render(scene,camera);}catch(error){renderFailed=true;virtual=false;message('renderError',{error:error.message});return;}
+  try{rig?.update(frame,dt,demo,elapsed);humanAppearance?.morphs();renderer.render(scene,camera);}catch(error){renderFailed=true;virtual=false;message('renderError',{error:error.message});return;}
   if(virtual&&!sending&&now>=nextSend) {
     sending=true;
     const session=cameraSession;
@@ -85,11 +86,12 @@ self.onmessage=async event=>{
       token=data.token;client=data.client;hosted=!!data.hosted;scene=new THREE.Scene();scene.background=new THREE.Color('#292646');camera=new THREE.PerspectiveCamera(30,1280/720,.1,20);
       renderer=new THREE.WebGLRenderer({canvas:data.canvas,antialias:true,preserveDrawingBuffer:true});renderer.setSize(1280,720,false);renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;
       fillLight=new THREE.HemisphereLight('#fff1df','#8995c0',2);scene.add(fillLight);keyLight=new THREE.DirectionalLight('#fff5e8',2);keyLight.position.set(-2,3,3);scene.add(keyLight);
-      loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser));await load(data.source||new URL('assets/Seed-san.vrm',self.location.href).href);if(!hosted)poll();setInterval(tick,1000/30);
+      humanSettings=data.humanSettings||{};loader=new GLTFLoader();loader.register(parser=>new VRMLoaderPlugin(parser));await load(data.source||new URL('assets/CorporateHuman.vrm',self.location.href).href);if(!hosted)poll();setInterval(tick,1000/30);
     }catch(error){message('error',{error:error.message});}
   }else if(data.type==='load')load(data.source);
   else if(data.type==='demo')demo=data.value;
   else if(data.type==='appearance'){appearanceColors=data.value||{};applyAppearance();}
+  else if(data.type==='humanAppearance'){humanSettings=data.value||{};humanAppearance?.apply(humanSettings);applyAppearance();}
   else if(data.type==='mirror'){mirrored=!!data.value;rig?.setMirror(mirrored);}
   else if(data.type==='trackingFrame'){frame=data.frame;message('tracking',{face:!!frame?.face,pose:!!frame?.pose,hands:countHands(frame)});}
   else if(data.type==='virtual'){if(cameraSession!==(data.session||null)){failedSince=0;nextSend=0;}virtual=data.value;cameraSession=data.session||null;}

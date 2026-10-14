@@ -6,6 +6,11 @@ const browserTracker=new BrowserTracker(frame=>{worker?.postMessage({type:'track
 const client=crypto.randomUUID();
 let token='',tracking=false,virtual=false,cameraSession=null,detected={face:false,pose:false,hands:0},worker,ready=false,epoch=0,pending=false,latest=null,reconnecting=null,bridgeWasOffline=false;
 let appearance=readAppearance(),pendingModel=null;
+let builtin='makehuman',humanSettings={style:'realistic',hairStyle:0,beard:false,glasses:false};
+try{builtin=document.cookie.split(';').map(x=>x.trim()).find(x=>x==='avatar_builtin_v1=seed')?'seed':'makehuman';const item=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('avatar_makehuman_v1='));if(item){const data=JSON.parse(decodeURIComponent(item.slice('avatar_makehuman_v1='.length)))||{};humanSettings={style:data.style==='stylized'?'stylized':'realistic',hairStyle:[0,1,2,3].includes(data.hairStyle)?data.hairStyle:0,beard:data.beard===true,glasses:data.glasses===true};}}catch{}
+const builtinSource=()=>new URL('assets/'+(builtin==='seed'?'Seed-san':'CorporateHuman')+'.vrm',location.href).href;
+function rememberHuman(){const path=location.pathname.startsWith('/Games/Avatar')?'/Games/Avatar/':'/';const flags=`; Max-Age=15552000; Path=${path}; SameSite=Lax${location.protocol==='https:'?'; Secure':''}`;document.cookie='avatar_builtin_v1='+builtin+flags;document.cookie='avatar_makehuman_v1='+encodeURIComponent(JSON.stringify(humanSettings))+flags;}
+function loadBuiltin(){builtin=$('builtinModel').value==='seed'?'seed':'makehuman';pendingModel={builtin:true};rememberHuman();status('Carregando '+(builtin==='seed'?'Seed-san':'MakeHuman / MPFB')+'…');worker?.postMessage({type:'load',source:builtinSource()});}
 if(!appearance){let previous;try{previous=localStorage.getItem('avatarPresentation');}catch{}appearance=sanitizeAppearance({presentation:previous});}
 function savePreferences(){
   appearance=sanitizeAppearance({...appearance,presentation:$('presentation').value,background:$('background').value,framing:$('framing').value,mirror:$('mirror').checked,poseQuality:$('poseQuality').value});
@@ -71,7 +76,10 @@ async function operation(path,body,message) {
   }catch(error){status(error.message,true);}finally{pending=false;epoch++;if(latest)applyState(latest);}
 }
 $('modelFile').addEventListener('change',async event=>{const file=event.target.files[0];if(!file||!worker)return;if(file.size>150*1024*1024){status('O avatar deve ter até 150 MB.',true);return;}const source=await file.arrayBuffer();pendingModel={file};status('Carregando seu modelo VRM…');worker.postMessage({type:'load',source},[source]);event.target.value='';});
-$('defaultModel').onclick=()=>{pendingModel={builtin:true};status('Carregando Seed-san…');worker?.postMessage({type:'load',source:new URL('assets/Seed-san.vrm',location.href).href});};
+$('defaultModel').onclick=loadBuiltin;
+$('builtinModel').value=builtin;$('builtinModel').onchange=loadBuiltin;
+for(const id of ['humanStyle','humanHair','humanBeard','humanGlasses'])$(id).onchange=()=>{humanSettings={style:$('humanStyle').value,hairStyle:Number($('humanHair').value),beard:$('humanBeard').checked,glasses:$('humanGlasses').checked};rememberHuman();send('humanAppearance',humanSettings);};
+$('humanStyle').value=humanSettings.style;$('humanHair').value=humanSettings.hairStyle;$('humanBeard').checked=humanSettings.beard===true;$('humanGlasses').checked=humanSettings.glasses===true;
 $('framing').onchange=()=>{send('framing',$('framing').value);savePreferences();};$('background').onchange=()=>{send('background',$('background').value);savePreferences();};$('demo').onchange=()=>send('demo',$('demo').checked);
 $('calibrate').onclick=()=>{if(!tracking){status('Inicie o rastreamento antes de calibrar.');return;}send('calibrate');status('Posição neutra calibrada.');};
 $('track').onclick=async()=>{
@@ -100,7 +108,7 @@ async function initialize() {
     worker=new Worker('render-worker.js',{type:'module'});
     worker.onerror=event=>{ready=false;virtual=false;send('virtual',false);if(!hosted){$('virtual').disabled=true;api('camera/stop',{}).catch(()=>{});}else browserTracker.stop();status('Erro na renderização: '+(event.message||'Não foi possível carregar o renderer.'),true);};
     worker.onmessage=({data})=>{
-      if(data.type==='loaded'){ready=true;$('modelName').textContent=data.name;$('rigInfo').textContent=`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status(hosted?'Avatar carregado. Inicie o rastreamento pela webcam.':'Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');if(pendingModel){const selected=pendingModel;pendingModel=null;(selected.builtin?clearGuestModel():saveGuestModel(selected.file)).then(()=>status(selected.builtin?'Modelo padrão selecionado.':'Avatar importado salvo neste navegador para a próxima visita.')).catch(()=>status('Avatar carregado, mas o navegador não conseguiu guardá-lo para a próxima visita.',true));}}
+      if(data.type==='loaded'){ready=true;$('modelName').textContent=data.makehuman?'MakeHuman / MPFB · '+data.name:data.name;for(const id of ['humanStyle','humanHair','humanBeard','humanGlasses'])$(id).disabled=!data.makehuman;$('rigInfo').textContent=`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status(hosted?'Avatar carregado. Inicie o rastreamento pela webcam.':'Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');if(pendingModel){const selected=pendingModel;pendingModel=null;(selected.builtin?clearGuestModel():saveGuestModel(selected.file)).then(()=>status(selected.builtin?'Modelo padrão selecionado.':'Avatar importado salvo neste navegador para a próxima visita.')).catch(()=>status('Avatar carregado, mas o navegador não conseguiu guardá-lo para a próxima visita.',true));}}
       else if(data.type==='tracking'){detected=data;if(hosted)$('trackingState').textContent=tracking?`${data.face?'Rosto detectado':'Sem rosto'} · ${data.pose?'Corpo detectado':'Corpo fora do quadro'} · ${data.hands} mãos`:'Webcam desligada';}
       else if(data.type==='cameraError'){virtual=false;send('virtual',false);operation('camera/stop',{},data.error);}
       else if(data.type==='renderError'){ready=false;if(!hosted){$('virtual').disabled=true;operation('camera/stop',{},'Renderização interrompida: '+data.error);}else{browserTracker.stop();status('Renderização interrompida: '+data.error,true);}}
@@ -109,7 +117,7 @@ async function initialize() {
       else if(data.type==='cameraRecovered')status('Transmissão do avatar recuperada.');
       else if(data.type==='authExpired'){if(!reconnecting)reconnecting=handshake().catch(error=>status(error.message,true)).finally(()=>reconnecting=null);}
     };
-    const canvas=$('avatar').transferControlToOffscreen();worker.postMessage({type:'init',token,client,canvas,hosted,source:savedSource},savedSource?[canvas,savedSource]:[canvas]);
+    const canvas=$('avatar').transferControlToOffscreen();worker.postMessage({type:'init',token,client,canvas,hosted,humanSettings,source:savedSource||builtinSource()},savedSource?[canvas,savedSource]:[canvas]);
     const restored=appearance;presentation(restored.presentation,false);
     $('background').value=restored.background;$('framing').value=restored.framing;$('mirror').checked=restored.mirror;$('poseQuality').value=restored.poseQuality;
     for(const key of ['skin','hair','eyes','outfit'])$(key+'Color').value=restored.colors[key]||'';

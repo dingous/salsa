@@ -33,7 +33,7 @@ MPFB 2.0.18, Blender 5.2.2, MediaPipe Python 0.10.21.
 
 ## Limites observados
 
-Não houve rosto, corpo ou mãos detectados na webcam durante o teste de hardware.
+No teste inicial, não houve rosto, corpo ou mãos detectados na webcam.
 Assim, a precisão dos gestos de uma pessoa ao vivo ainda precisa de validação
 com alguém devidamente enquadrado. Os testes de pose/mãos/expressões acima
 verificam o mapeamento dos dados para o rig, usando dados de referência.
@@ -62,4 +62,33 @@ Imagens locais: `CorporateUnity/Validation/corporate-realistic.png`,
 permanecem fora do Git.
 
 SHA-256 do modelo:
-`98bd5bfee6e9953a998b4160ab3ac734ebb4191ca6cf3f613cee859a09a2df5d`.
+`298e21442c74ef8653b9f369b0d1bf4c1e1d2c835447929f1d653ff4c98288ae`.
+
+## Reexecução do E2E — 14/10/2026
+
+- Modelo MakeHuman/MPFB confirmado no projeto Unity: 13 malhas, 52 ossos e
+  67 expressões customizadas (52 ARKit + 15 visemes).
+- E2E do editor/rig: 356 verificações PASS, processo encerrado com código 0.
+- Primeira inicialização do teste de hardware: crash nativo do Mono durante
+  `System.Xml.XmlTextReaderImpl` / inicialização de `System.Net.Sockets`.
+  Evidência preservada em `Validation/corporate-live-crash.log`.
+- Repetição do hardware: PASS, 541 quadros em 18 segundos, 720p a 30,06 FPS.
+  Desta vez houve detecção de rosto e pose corporal; não houve detecção de mãos.
+- O crash não se reproduziu na repetição e sua causa não foi corrigida ou
+  isolada. Portanto a estabilidade de inicialização não está 100% validada.
+- A versão web ainda carrega Seed-san; o MakeHuman pertence ao projeto Unity
+  corporativo e não foi integrado nem publicado no website.
+
+## Integração visível Windows/web
+
+O início padrão do Windows agora abre Corporate Avatar Studio. O início anterior
+permanece em `Iniciar Avatar Studio Anterior.cmd`, e o Studio antigo ganha um
+botão para abrir MakeHuman/MPFB em Modelo VRM. A web local tem seletor MakeHuman
+ou Seed-san e controles de estilo, cabelo, barba e óculos, com preferências
+guardadas em cookies. O modelo agora usa metadados VRM 1.0 aceitos pelo loader web.
+
+PASS: importação no Three-VRM, 46 verificações no rig MakeHuman, estilos e
+acessórios, regressões de filtros/cookies/mãos e 15 verificações do servidor.
+O teste Node usa decodificação de texturas simulada e não valida renderização.
+A inspeção do navegador local foi bloqueada pela política da ferramenta.
+Essa versão web ainda não foi publicada no domínio.

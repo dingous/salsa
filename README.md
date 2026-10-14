@@ -1,5 +1,14 @@
 # Salsa Avatar Studio
 
+**MakeHuman/MPFB no Windows:** `Iniciar Avatar Studio.cmd` agora abre o Corporate
+Avatar Studio com o humano corporativo. A versão anterior continua em
+`Iniciar Avatar Studio Anterior.cmd`. Na interface antiga, abra **Modelo VRM →
+Abrir MakeHuman / MPFB**. O projeto Unity novo está na pasta `CorporateUnity`.
+
+**MakeHuman na web local:** recarregue a página e escolha **Modelo de avatar →
+MakeHuman / MPFB**. Seed-san continua disponível no mesmo seletor. A versão do
+domínio ainda precisa receber essa atualização; não foi publicada nesta etapa.
+
 Aplicativo Unity 6 para usar **avatares profissionais VRM com UniVRM**, ou criar um **avatar procedural inspirado em uma foto**, e animá-los pela webcam. A saída de vídeo contém somente o personagem e o cenário, sem a foto de referência ou a interface.
 
 **Versão web para chamadas:** abra `Iniciar Avatar Studio Web.cmd`, inicie o rastreamento e ative a câmera virtual. No Teams, selecione **OBS Virtual Camera**. A interface web renderiza modelos VRM usando three-vrm e uma ponte local entrega o canvas ao driver OBS, sem transmitir a interface ou a imagem bruta da webcam. [Detalhes e limites da versão web](Web/README.md).

@@ -1,0 +1,24 @@
+Corporate Human 1.0
+
+Generated locally using MPFB 2.0.18 and Blender 5.2.2, exported to VRM 1.0.
+The generated model is derived from MakeHuman Community's CC0 base mesh,
+core textures, eyes, teeth, tongue, eyebrows, eyelashes, hair short02,
+short04 and long01, male_elegantsuit01 and shoes01.
+
+Additional CC0 fitted assets:
+WDG: wdg_scruffy_beard (bodyparts05).
+spamrakuen: spamrakuen_tbm_glasses_frames_01 (glasses01).
+Face units and Meta visemes: official faceunits01 and visemes02 packs.
+
+Asset license: Creative Commons CC0 1.0 Universal.
+https://creativecommons.org/publicdomain/zero/1.0/
+https://static.makehumancommunity.org/about/license.html
+https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+https://static.makehumancommunity.org/assets/assetpacks/bodyparts05.html
+https://static.makehumancommunity.org/assets/assetpacks/glasses01.html
+
+MPFB's build-tool source is GPL-3.0; it is not included in the Unity runtime.
+https://github.com/makehumancommunity/mpfb2/tree/v2.0.18
+UniVRM 0.131.3 is MIT licensed; see the shared Packages directories.
+
+No BOOTH or Fiverr paid model is included.

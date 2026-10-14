@@ -208,13 +208,23 @@ namespace WebcamAvatar
             Button("Usar gerador procedural",parent,24,360,322,42,()=>{if(busy)return;Vrm.UseProcedural();avatar.Profile.vrmSource=null;RefreshModelStatus();SetStatus("Gerador procedural selecionado. Gere e personalize pela foto.");});
             Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
             Button("Restaurar cores originais do VRM",parent,24,466,322,30,()=>{Vrm.ResetAppearance();SetStatus("Materiais originais restaurados.");});
-            Label("Seed-san © VirtualCast, Inc.\nVRM Public License 1.0 · crédito obrigatório",parent,24,500,322,44,11,muted);
+            Button("Abrir MakeHuman / MPFB",parent,24,500,322,44,OpenCorporate,true);
         }
         void SelectVrm()
         {
             if(busy)return;
             try{string path=PhotoPicker.Pick(true);if(path!=null)StartCoroutine(LoadVrmRoutine(path));}
             catch(Exception e){SetStatus("Não foi possível selecionar o modelo: "+e.Message,true);}
+        }
+        void OpenCorporate()
+        {
+            try {
+                string path=Path.GetFullPath(Path.Combine(Application.dataPath,"..","CorporateUnity","Build","CorporateAvatarStudio.exe"));
+                if(!File.Exists(path))path=Path.GetFullPath(Path.Combine(Application.dataPath,"..","..","CorporateUnity","Build","CorporateAvatarStudio.exe"));
+                if(!File.Exists(path))throw new FileNotFoundException("Compile CorporateUnity com Tools/build-corporate.ps1.");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo{FileName=path,UseShellExecute=true});
+                SetStatus("MakeHuman / MPFB aberto no Corporate Avatar Studio. A versão anterior continua disponível.");
+            }catch(Exception error){SetStatus(error.Message,true);}
         }
         public IEnumerator LoadVrmRoutine(string path)
         {
