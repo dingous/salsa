@@ -5,6 +5,7 @@ from pathlib import Path
 from dingous_partner import answer,ROOT
 from local_ai import ensure_local_ai
 from fitness_agent import matches as fitness_matches
+from nutrition_agent import matches as nutrition_matches
 LOCK=threading.Lock()
 def token():
  path=ROOT/'android-pair-token.txt';path.parent.mkdir(parents=True,exist_ok=True)
@@ -29,7 +30,7 @@ def handler(secret):
     if not isinstance(question,str) or not 0<len(question.strip())<=2000:raise ValueError('Pergunta inválida.')
     if not LOCK.acquire(blocking=False):self.reply(409,{'error':'Dingous já está respondendo.'});return
     try:
-     if not fitness_matches(question):ensure_local_ai()
+     if not fitness_matches(question) and not nutrition_matches(question):ensure_local_ai()
      result=answer(question,public_environment=True)
     finally:LOCK.release()
     self.reply(200,result)
@@ -37,6 +38,9 @@ def handler(secret):
  return Handler
 def main():
  p=argparse.ArgumentParser();p.add_argument('--port',type=int,default=8767);a=p.parse_args()
- print('Dingous Android: ponte loopback ativa; código em '+str(ROOT/'android-pair-token.txt'),flush=True)
- ThreadingHTTPServer(('127.0.0.1',a.port),handler(token())).serve_forever()
+ secret=token()
+ # MSIX hosts can redirect LocalAppData. Show the physical file location
+ # visible in Explorer, rather than a virtual path that only this process sees.
+ print('Dingous Android: ponte loopback ativa; código em '+str((ROOT/'android-pair-token.txt').resolve()),flush=True)
+ ThreadingHTTPServer(('127.0.0.1',a.port),handler(secret)).serve_forever()
 if __name__=='__main__':main()
