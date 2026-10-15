@@ -50,8 +50,14 @@ namespace UniVRM10
 
         public void Dispose()
         {
+            // Detach the generated Avatar before releasing its native state.
+            if (ControlRigAnimator != null && ControlRigAnimator.avatar == _controlRigAvatar)
+            {
+                ControlRigAnimator.avatar = null;
+            }
             UnityEngine.Object.Destroy(_controlRigAvatar);
-            UnityEngine.Object.Destroy(_controlRigRoot);
+            // A Transform cannot be destroyed independently of its GameObject.
+            if (_controlRigRoot != null) UnityEngine.Object.Destroy(_controlRigRoot.gameObject);
         }
 
         internal void Process()

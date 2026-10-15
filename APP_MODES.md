@@ -20,3 +20,11 @@ Windows: no modo Agente, **Avatar no canto** posiciona uma janela compacta sobre
 Android: fechar a atividade não encerra o serviço de escuta já iniciado pelo usuário. A notificação persistente abre novamente o avatar e permite parar o serviço. Ao reabrir, o último modo Agente escolhido é restaurado. Não há sobreposição sobre outros aplicativos nem inicialização automática no boot. Forçar parada, permissões revogadas, políticas de bateria e restrições do Android podem interromper o serviço. Tela cheia corresponde ao aplicativo aberto; segundo plano corresponde ao serviço com notificação. Não há garantia de escuta ininterrupta após o sistema matar o processo.
 
 Windows e Android restauram o modo Agente selecionado anteriormente; a primeira execução continua no modo Webcam. Parar explicitamente ou voltar ao modo Webcam deve ser respeitado.
+
+## Percepção e animação independentes
+
+No modo Agente, pacotes da webcam não movimentam o avatar. A animação recebe uma fonte própria e responde com gestos limitados: acenar, piscar, sorrir, levantar braços e assentir. O mesmo controlador atende Cartoon e Corporativo. Isso não equivale a gerar qualquer animação corporal solicitada.
+
+No Windows, perguntas como “O que estou fazendo?” ou “O que você vê?” capturam uma imagem atual da Webcam 0 e consultam o modelo local com visão. A imagem fica em memória, não vira arquivo nem é enviada à nuvem. É uma observação sob consulta, não monitoramento visual contínuo ou identificação biométrica. O modelo deve expressar incerteza e não inferir atributos sensíveis. No Android, essa consulta não usa indevidamente a câmera do computador; a transmissão da imagem do telefone ainda precisa ser integrada.
+
+O reconhecimento de voz Windows usa Whisper small local, configurável no código do admin ChatTrade por `AsrModel`. Instale pelo script `Tools/setup-local-asr.ps1`; nenhum modelo é baixado silenciosamente durante a escuta. A alteração no admin ainda não foi publicada em produção.

@@ -11,6 +11,7 @@ namespace WebcamAvatar
     [Serializable] public class Point { public float x, y, z, confidence; }
     [Serializable] public class TrackingFrame
     {
+        public string source;
         public bool face, pose;
         public Shape[] shapes;
         public Point[] points;
@@ -23,6 +24,8 @@ namespace WebcamAvatar
     {
         public int port = 5059;
         public bool NativeSpeaking;
+        public bool AgentMode;
+        public void ApplyAgentFrame(TrackingFrame value){if(!AgentMode)return;frame=value;FrameSequence++;received=Time.unscaledTime;}
         public float smoothing = 12;
         public bool mirror = true;
         public bool showDiagnostics = false;
@@ -168,6 +171,7 @@ namespace WebcamAvatar
                 for(int i=0;i<64 && socket.Available>0;i++) {
                     IPEndPoint endpoint=null; var data=socket.Receive(ref endpoint);
                     var next=JsonUtility.FromJson<TrackingFrame>(Encoding.UTF8.GetString(data));
+                    if(AgentMode && (next==null||next.source!="agent"))continue;
                     if(Valid(next))newest=next;
                 }
                 if(newest!=null){

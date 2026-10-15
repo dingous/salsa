@@ -12,9 +12,10 @@ public final class DingousNative {
  public static String state(Activity a){return a.getSharedPreferences("dingous",0).getString("state","{}");}
  public static boolean ask(Activity a,String question){DingousService service=DingousService.instance;return service!=null&&service.ask(question);}
  public static void preview(Activity a){if(DingousService.instance!=null)DingousService.instance.previewVoice();}
+ public static void installVoice(Activity a){a.runOnUiThread(()->{try{a.startActivity(new Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA));}catch(ActivityNotFoundException e){Toast.makeText(a,"Instale um motor de voz pt-BR offline nas configurações do Android.",Toast.LENGTH_LONG).show();}});}
  public static void pair(Activity a){a.runOnUiThread(()->{
   LinearLayout layout=new LinearLayout(a);layout.setOrientation(1);
-  EditText url=new EditText(a),token=new EditText(a);url.setHint("URL da ponte HTTPS ou http://127.0.0.1:8767 (ADB)");token.setHint("Código secreto de pareamento");token.setInputType(129);layout.addView(url);layout.addView(token);
+  EditText url=new EditText(a),token=new EditText(a);url.setHint("URL da ponte HTTPS ou loopback ADB");url.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_URI);url.setSingleLine(true);url.setText(a.getSharedPreferences("dingous",0).getString("url","http://127.0.0.1:8767"));token.setHint("Código secreto de pareamento");token.setInputType(129);token.setSingleLine(true);layout.addView(url);layout.addView(token);
   new AlertDialog.Builder(a).setTitle("IA local · parear computador").setView(layout).setPositiveButton("Salvar",(d,w)->configure(a,url.getText().toString().trim(),token.getText().toString().trim())).setNegativeButton("Cancelar",null).show();
  });}
  public static void configure(Activity a,String url,String token){

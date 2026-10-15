@@ -6,6 +6,7 @@ from dingous_partner import answer,ROOT
 from local_ai import ensure_local_ai
 from fitness_agent import matches as fitness_matches
 from nutrition_agent import matches as nutrition_matches
+from dingous_vision import matches as vision_matches
 LOCK=threading.Lock()
 def token():
  path=ROOT/'android-pair-token.txt';path.parent.mkdir(parents=True,exist_ok=True)
@@ -28,6 +29,7 @@ def handler(secret):
     if not 0<size<=8192:raise ValueError('Requisição inválida.')
     self.connection.settimeout(10);body=json.loads(self.rfile.read(size));question=body.get('question')
     if not isinstance(question,str) or not 0<len(question.strip())<=2000:raise ValueError('Pergunta inválida.')
+    if vision_matches(question):raise ValueError('A percepção Android precisa de uma imagem deste aparelho; ela ainda não está conectada. A câmera do computador não será usada como se fosse a do celular.')
     if not LOCK.acquire(blocking=False):self.reply(409,{'error':'Dingous já está respondendo.'});return
     try:
      if not fitness_matches(question) and not nutrition_matches(question):ensure_local_ai()

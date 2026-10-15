@@ -32,6 +32,33 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--startup-only")>=0){yield return new WaitForSecondsRealtime(1);Debug.Log("CORPORATE_STARTUP_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;}
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--agent-isolation")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    Check(ui.Vrm.Active && (mode==0?ui.Vrm.ModelName.Contains("Seed"):ui.Vrm.Appearance.IsCorporateHuman),"Expected VRM model loaded "+mode);
+                    Call(ui,"ShowPartner");Check(ui.tracking.AgentMode,"Agent source isolation enabled model "+mode);
+                    using(var source=new UdpClient()){
+                        var camera=new TrackingFrame{source="camera",face=true,pose=false,shapes=new[]{new Shape{name="eyeBlinkLeft",value=1}},rotation=new[]{1f,0,0,0,1,0,0,0,1}};
+                        byte[] raw=System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(camera));
+                        for(int i=0;i<15;i++){source.Send(raw,raw.Length,"127.0.0.1",ui.tracking.port);yield return null;}
+                        Check(!ui.tracking.Connected,"Camera does not animate Agent model "+mode);
+                        camera.source="agent";yield return Send(source,camera,ui.tracking.port,.5f);
+                        Check(ui.tracking.Connected&&ui.tracking.GetExpression("eyeBlinkRight")>.5f,"Agent expression reaches rig model "+mode);
+                    }
+                    ui.tracking.NativeSpeaking=true;yield return new WaitForSecondsRealtime(.3f);
+                    Check(ui.tracking.GetExpression("jawOpen")>.1f,"Agent speech drives jaw independently of webcam model "+mode);ui.tracking.NativeSpeaking=false;
+                    var hand=ui.Vrm.Instance.Runtime.ControlRig.GetBoneTransform(HumanBodyBones.RightHand);
+                    var beforeGesture=hand.position;
+                    ui.GetComponent<AgentMotion>().Respond("Acene para mim","Olá.");
+                    yield return new WaitForSecondsRealtime(1.4f);
+                    Check(Vector3.Distance(beforeGesture,hand.position)>.06f,"Command-controlled Agent gesture moves rig model "+mode);
+                    Call(ui,"SelectRunMode",false);Check(!ui.tracking.AgentMode,"Webcam input restored model "+mode);
+                }
+                ui.Vrm.Shutdown();yield return null;yield return new WaitForEndOfFrame();
+                yield return Resources.UnloadUnusedAssets();
+                Debug.Log("CORPORATE_AGENT_ISOLATION_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--rig-parity")>=0){
                 foreach(int mode in new[]{0,1}){
                     Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
@@ -407,7 +434,7 @@ namespace WebcamAvatar
             }
             return true;
         }
-        static IEnumerator Send(UdpClient udp,TrackingFrame packet,int port,float duration){byte[] bytes=System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(packet));float start=Time.realtimeSinceStartup;while(Time.realtimeSinceStartup-start<duration){udp.Send(bytes,bytes.Length,"127.0.0.1",port);yield return null;}}
+        static IEnumerator Send(UdpClient udp,TrackingFrame packet,int port,float duration){packet.source=FindAnyObjectByType<StudioUI>().AgentMode?"agent":"camera";byte[] bytes=System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(packet));float start=Time.realtimeSinceStartup;while(Time.realtimeSinceStartup-start<duration){udp.Send(bytes,bytes.Length,"127.0.0.1",port);yield return null;}}
         static bool Enabled(VrmAvatarController vrm,string name){foreach(var r in vrm.Instance.GetComponentsInChildren<Renderer>())if(r.name.ToLowerInvariant().Contains(name))return r.enabled;return false;}
         void OnDisable(){Application.logMessageReceived-=Log;}
     }

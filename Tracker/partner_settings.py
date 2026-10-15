@@ -23,5 +23,7 @@ def load():
 def speak(path,settings=None):
  settings=load() if settings is None else settings
  if settings.get('sharedEnvironmentProtection',True):return False
- subprocess.run(['powershell.exe','-NoProfile','-File',str(Path(__file__).with_name('dingous_speak.ps1')),'-TextPath',str(path),'-VoiceName',settings['voiceName'],'-Rate',str(settings['voiceRate']),'-Volume',str(settings['voiceVolume'])],check=True)
+ print('SPEECH|START',flush=True)
+ try:subprocess.run(['powershell.exe','-NoProfile','-File',str(Path(__file__).with_name('dingous_speak.ps1')),'-TextPath',str(path),'-VoiceName',settings['voiceName'],'-Rate',str(settings['voiceRate']),'-Volume',str(settings['voiceVolume'])],check=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+ finally:print('SPEECH|END',flush=True)
  return True

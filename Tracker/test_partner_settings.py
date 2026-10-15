@@ -20,6 +20,20 @@ class AdminSettingsTests(unittest.TestCase):
  def test_custom_wake_word(self):
   self.assertEqual(wake_command('Parceiro, minha agenda','Parceiro'),'minha agenda')
   self.assertIsNone(wake_command('Dingous, oi','Parceiro'))
+ def test_speech_protocol_and_privacy(self):
+  from contextlib import redirect_stdout
+  output=io.StringIO()
+  with patch('partner_settings.subprocess.run') as runner,redirect_stdout(output):
+   self.assertFalse(settings.speak(Path('unused.txt'),dict(settings.DEFAULTS,sharedEnvironmentProtection=True)))
+   runner.assert_not_called();self.assertEqual(output.getvalue(),'')
+   self.assertTrue(settings.speak(Path('test.txt'),dict(settings.DEFAULTS,sharedEnvironmentProtection=False)))
+  self.assertEqual(output.getvalue().splitlines(),['SPEECH|START','SPEECH|END'])
+ def test_speech_failure_still_releases_animation(self):
+  from contextlib import redirect_stdout
+  output=io.StringIO()
+  with patch('partner_settings.subprocess.run',side_effect=RuntimeError('test failure')),redirect_stdout(output):
+   with self.assertRaises(RuntimeError):settings.speak(Path('test.txt'),dict(settings.DEFAULTS,sharedEnvironmentProtection=False))
+  self.assertEqual(output.getvalue().splitlines(),['SPEECH|START','SPEECH|END'])
  def test_cloud_model_rejected(self):
   with patch.object(settings.chat_trade_client.CONFIG.__class__,'exists',return_value=True),patch('chat_trade_client.settings',return_value=({},'https://example.test',7,'token')),self.remote({'model':'model-cloud'}):
    with self.assertRaises(ValueError):settings.load()

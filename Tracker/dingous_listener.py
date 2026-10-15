@@ -18,7 +18,10 @@ def listen():
  from faster_whisper import WhisperModel
  parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--seconds',type=float,default=0);args=parser.parse_args()
  settings=load_settings()
- root=Path(__file__).parent/'models/whisper';model=WhisperModel('base',device='cpu',compute_type='int8',download_root=str(root),local_files_only=True,cpu_threads=4)
+ root=Path(__file__).parent/'models/whisper';asr_model=settings.get('asrModel','small')
+ if asr_model not in ('base','small'):raise ValueError('Modelo de voz inválido; use base ou small no admin.')
+ try:model=WhisperModel(asr_model,device='cpu',compute_type='int8',download_root=str(root),local_files_only=True,cpu_threads=4)
+ except Exception as error:raise RuntimeError('Modelo de voz '+asr_model+' não instalado. Execute Tools/setup-local-asr.ps1 para instalar small ou ajuste o modelo no admin.') from error
  packets=queue.Queue(maxsize=200)
  def callback(data,frames,timing,status):
   try:packets.put_nowait(bytes(data))
@@ -58,7 +61,7 @@ def listen():
    if len(sample)<6400:continue
    stream.stop()
    try:
-    segments,_=model.transcribe(sample,language='pt',beam_size=3,initial_prompt='Dingous é o nome do assistente pessoal.',vad_filter=True)
+    segments,_=model.transcribe(sample,language='pt',beam_size=5,initial_prompt='Dingous é o nome do assistente. Comandos: acene, pisque, sorria, levante os braços.',vad_filter=True)
     text=' '.join(s.text for s in segments if s.no_speech_prob<.6).strip()
     command=wake_command(text,settings['wakeWord'])
     if command is None and not wasActive:continue

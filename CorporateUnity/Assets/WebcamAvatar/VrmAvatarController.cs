@@ -59,7 +59,10 @@ namespace WebcamAvatar
                 var file=new FileInfo(path);
                 if(!file.Exists || !path.EndsWith(".vrm",StringComparison.OrdinalIgnoreCase))throw new IOException("Selecione um arquivo .vrm vÃ¡lido.");
                 if(file.Length>150*1024*1024)throw new IOException("O modelo deve ter atÃ© 150 MB.");
-                candidate=await Vrm10.LoadPathAsync(path,canLoadVrm0X:true,showMeshes:false);
+                // One active avatar: complete spring-bone jobs inside this
+                // model's Process call, rather than the global service whose
+                // LateUpdate precedes our manual retargeting pass.
+                candidate=await Vrm10.LoadPathAsync(path,canLoadVrm0X:true,showMeshes:false,springboneRuntime:new Vrm10FastSpringboneRuntimeStandalone());
                 if(candidate==null)throw new IOException("O arquivo nÃ£o contÃ©m um avatar VRM compatÃ­vel.");
                 candidate.UpdateType=Vrm10Instance.UpdateTypes.None;
                 // Live eyelids must remain independent of preset emotion overrides.
@@ -79,7 +82,7 @@ namespace WebcamAvatar
                 if(first || bounds.size.y<.1f)throw new IOException("O modelo nÃ£o contÃ©m malhas visÃ­veis.");
                 float scale=2.15f/bounds.size.y;candidate.transform.localScale*=scale;
                 candidate.transform.position=new Vector3(-bounds.center.x*scale,-bounds.min.y*scale-.30f,-bounds.center.z*scale);
-                if(Instance!=null)Destroy(Instance.gameObject);
+                if(Instance!=null){Instance.DisposeRuntime();Destroy(Instance.gameObject);}
                 Instance=candidate;candidate=null;SourcePath=Path.GetFullPath(path);origin=Instance.transform.position;facing=Instance.transform.rotation;
                 bones.Clear();localRest.Clear();worldRest.Clear();directions.Clear();palmRest.Clear();
                 limbEnds.Clear();
@@ -331,6 +334,8 @@ namespace WebcamAvatar
                 else ReleaseHand(key);
             }
         }
-        void OnDestroy(){if(Instance!=null)Destroy(Instance.gameObject);}
+        public void Shutdown(){enabled=false;if(Instance!=null){Instance.DisposeRuntime();Destroy(Instance.gameObject);Instance=null;}}
+        void OnApplicationQuit(){Shutdown();}
+        void OnDestroy(){if(Instance!=null){Instance.DisposeRuntime();Destroy(Instance.gameObject);}}
     }
 }

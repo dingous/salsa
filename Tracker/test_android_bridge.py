@@ -23,4 +23,9 @@ class AndroidBridgeTests(unittest.TestCase):
    req=urllib.request.Request(self.url+'/ask',data=b'{"question":""}',headers={'Authorization':'Bearer test-secret'})
    with self.assertRaises(urllib.error.HTTPError):urllib.request.urlopen(req)
    ask.assert_not_called()
+ def test_android_never_uses_desktop_camera_as_phone(self):
+  with patch('android_bridge.answer') as ask:
+   req=urllib.request.Request(self.url+'/ask',data=json.dumps({'question':'O que estou fazendo?'}).encode(),headers={'Authorization':'Bearer test-secret'})
+   with self.assertRaises(urllib.error.HTTPError) as error:urllib.request.urlopen(req)
+   self.assertEqual(error.exception.code,400);ask.assert_not_called()
 if __name__=='__main__':unittest.main()

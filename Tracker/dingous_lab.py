@@ -44,7 +44,7 @@ def frame(action,phase,intensity):
         for f in range(5):
             for j in range(4): hand.append(point(side*(f-2)*.018,-.02*(j+1)*(1-curl),-.018*j*curl))
         hands.append(hand)
-    return dict(face=True,pose=True,shapes=shapes,points=p,imagePose=[],rotation=[1,0,0,0,math.cos(angle),-math.sin(angle),0,math.sin(angle),math.cos(angle)],leftHand=hands[0],rightHand=hands[1])
+    return dict(source='agent',face=True,pose=True,shapes=shapes,points=p,imagePose=[],rotation=[1,0,0,0,math.cos(angle),-math.sin(angle),0,math.sin(angle),math.cos(angle)],leftHand=hands[0],rightHand=hands[1])
 def frames(plan,fps=30):
     for step in validate(plan)['steps']:
         count=max(2,round(step['duration']*fps))
