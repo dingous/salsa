@@ -40,6 +40,9 @@ namespace WebcamAvatar
         string selectedPhoto, draft;
         bool busy, presentation;
         public bool AgentFullScreen=>partnerMode && presentation;
+        public bool AgentMode=>partnerMode;
+        WindowsAgentPresence presence;
+        public void PauseAgent(){SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);}
         LocalJob generator, trackerJob, cameraJob;
         VirtualCameraOutput broadcaster;
         string[] savedFolders=Array.Empty<string>();
@@ -85,11 +88,14 @@ namespace WebcamAvatar
             office=avatarCamera.gameObject.AddComponent<CorporateOffice>();office.Show(true);
             Vrm=gameObject.AddComponent<VrmAvatarController>();Vrm.settings=avatar;Vrm.tracking=tracking;
             MakeRoundedSprite(); Build(); RefreshLibrary();
+            presence=gameObject.AddComponent<WindowsAgentPresence>();
             if(Application.platform==RuntimePlatform.Android){androidRuntime=gameObject.AddComponent<AndroidRuntime>();androidRuntime.studio=this;androidRuntime.tracking=tracking;}
             int savedIndex=Array.IndexOf(savedFolders,PlayerPrefs.GetString("LastAvatar",""));
             if(savedIndex>=0 && !string.IsNullOrEmpty(JsonUtility.FromJson<AvatarProfile>(File.ReadAllText(Path.Combine(savedFolders[savedIndex],"avatar.json"))).vrmSource))LoadSaved(savedIndex+1);
             else StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));
+            if(PlayerPrefs.GetInt("DingousAgentAvailable",0)==1 && Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0)StartCoroutine(ResumeAgentMode());
         }
+        IEnumerator ResumeAgentMode(){yield return null;while(Vrm.Loading)yield return null;ShowPartner();}
         void MakeRoundedSprite()
         {
             roundTexture=new Texture2D(64,64,TextureFormat.RGBA32,false);
@@ -240,6 +246,7 @@ namespace WebcamAvatar
         }
         void SelectRunMode(bool agent){
             if(agent){ShowPartner();return;}
+            PlayerPrefs.SetInt("DingousAgentAvailable",0);PlayerPrefs.Save();
             if(presentation)SetPresentation(false);
             partnerMode=false;SetVoiceListening(false);StopPartner();StopLaboratory();
             if(androidRuntime!=null)androidRuntime.SetTracking(false);
@@ -252,6 +259,7 @@ namespace WebcamAvatar
                 return;
             }
             StopLaboratory();if(trackerJob!=null)ToggleTracking();tracking.ClearSource();partnerMode=true;
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){PlayerPrefs.SetInt("DingousAgentAvailable",1);PlayerPrefs.Save();}
             StopCamera();RefreshRunMode();
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Parceiro Dingous",responsive.Content,116,256,370,558,panel).gameObject;
@@ -275,11 +283,16 @@ namespace WebcamAvatar
             GUI.Box(new Rect(16,16,width-32,112),"DINGOUS · SEU AGENTE PESSOAL");
             GUI.Label(new Rect(32,46,width-64,32),status!=null?status.text:"Diga Dingous e seu comando.");
             bool listening=androidRuntime!=null?androidRuntime.Listening:voiceListener!=null;
-            if(GUI.Button(new Rect(32,82,180,32),listening?"Pausar escuta":"Retomar escuta")){
+            float buttonWidth=(width-88)/3;
+            if(GUI.Button(new Rect(32,82,buttonWidth,32),listening?"Pausar escuta":"Retomar escuta")){
                 SetVoiceListening(!listening);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(!listening);
             }
-            if(GUI.Button(new Rect(224,82,180,32),"Configurar / conversar"))SetPresentation(false);
-            if(GUI.Button(new Rect(416,82,150,32),"Modo Webcam"))SelectRunMode(false);
+            if(GUI.Button(new Rect(44+buttonWidth,82,buttonWidth,32),"Configurar"))SetPresentation(false);
+            if(GUI.Button(new Rect(56+buttonWidth*2,82,buttonWidth,32),"Modo Webcam"))SelectRunMode(false);
+            if(Application.platform==RuntimePlatform.WindowsPlayer){
+                if(GUI.Button(new Rect(16,138,140,30),"Avatar no canto"))presence.Corner();
+                if(GUI.Button(new Rect(168,138,140,30),"Segundo plano"))presence.Hide();
+            }
             string reply=partnerAnswer!=null?partnerAnswer.text:"";
             if(!string.IsNullOrWhiteSpace(reply))GUI.Box(new Rect(16,height-180,width-32,156),reply);
             GUI.matrix=Matrix4x4.identity;

@@ -51,6 +51,7 @@ namespace WebcamAvatar
             if(GUI.Button(new Rect(558,y+28,160,36),Tracking?"Parar câmera":"Rastrear câmera"))SetTracking(!Tracking);
             GUI.Label(new Rect(730,y+28,Screen.width/scale-740,42),$"Frames: {state.trackingFrames} · áudio: {state.audioChunks}\nRostos: {state.faces} · ASR: {state.asrReady} · voz: {state.voiceReady}");GUI.matrix=Matrix4x4.identity;
         }
-        void OnApplicationQuit(){using(var activity=Activity)Call("stop",activity);}
+        // Explicit pause/Webcam/notification stop controls own the foreground service.
+        // Closing the Unity activity must not stop a user-started background listener.
     }
 }

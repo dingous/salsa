@@ -36,7 +36,9 @@ public class DingousService extends Service {
   if(intent!=null){listen=intent.getBooleanExtra("voice",false);cameraRequested=intent.getBooleanExtra("camera",false);}
   int types=(listen?ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE:0)|(cameraRequested?ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA:0);
   Intent stop=new Intent(this,DingousService.class).setAction("stop");
-  Notification note=new Notification.Builder(this,"dingous").setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("Dingous ativo").setContentText(listen?"Escuta local: diga Dingous · privacidade protegida":"Câmera local para avatar").setOngoing(true).addAction(new Notification.Action.Builder(null,"Parar",PendingIntent.getService(this,0,stop,PendingIntent.FLAG_IMMUTABLE)).build()).build();
+  Intent launch=getPackageManager().getLaunchIntentForPackage(getPackageName());
+  PendingIntent open=launch==null?null:PendingIntent.getActivity(this,1,launch,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+  Notification note=new Notification.Builder(this,"dingous").setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("Dingous ativo").setContentText(listen?"Escuta local: diga Dingous · toque para abrir":"Câmera local para avatar").setContentIntent(open).setOngoing(true).addAction(new Notification.Action.Builder(null,"Parar",PendingIntent.getService(this,0,stop,PendingIntent.FLAG_IMMUTABLE)).build()).build();
   if(android.os.Build.VERSION.SDK_INT>=29&&types!=0)startForeground(4101,note,types);else startForeground(4101,note);
   if(cameraRequested&&camera==null){camera=new DingousCamera(this);camera.start();}else if(!cameraRequested&&camera!=null){camera.close();camera=null;faces=-1;}
   if((audioThread==null||!audioThread.isAlive())&&listen){audioThread=new Thread(this::audioLoop,"Dingous-ASR");audioThread.start();}

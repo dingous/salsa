@@ -12,3 +12,11 @@ O modo Agente abre o avatar em tela cheia, com status, resposta e controles disc
 Windows faz uma saudação fixa ao iniciar a escuta; Android faz uma saudação diária quando a voz está disponível, há um rosto detectado e não há ligação. O resumo diário Windows só consulta o ChatTrade no horário administrativo se a agenda estiver configurada e a proteção de ambiente compartilhado não bloquear. Não há consulta direta ao Google nesta implementação, nem sincronização validada ou alertas individuais de eventos no Android. Não considere os lembretes concluídos até validar a integração real. A saudação fixa não contém dados pessoais.
 
 Na versão web, o seletor existente usa os mesmos nomes **Modo Webcam** e **Modo Agente**. A câmera virtual do Windows depende dos componentes locais já utilizados pelo projeto.
+
+## Disponibilidade em segundo plano
+
+Windows: no modo Agente, **Avatar no canto** posiciona uma janela compacta sobre as outras no canto inferior direito. **Segundo plano** oculta a janela e mantém o processo/escuta. O ícone na bandeja permite restaurar, abrir em tela cheia, pausar e encerrar. Fechar a janela em modo Agente mantém o aplicativo na bandeja, desde que o processo da bandeja esteja disponível. Em Webcam, fechar encerra normalmente. O processo auxiliar usa apenas controles do próprio aplicativo. O aplicativo precisa ter sido iniciado; não é instalado como serviço nem registrado para iniciar com o Windows.
+
+Android: fechar a atividade não encerra o serviço de escuta já iniciado pelo usuário. A notificação persistente abre novamente o avatar e permite parar o serviço. Ao reabrir, o último modo Agente escolhido é restaurado. Não há sobreposição sobre outros aplicativos nem inicialização automática no boot. Forçar parada, permissões revogadas, políticas de bateria e restrições do Android podem interromper o serviço. Tela cheia corresponde ao aplicativo aberto; segundo plano corresponde ao serviço com notificação. Não há garantia de escuta ininterrupta após o sistema matar o processo.
+
+Windows e Android restauram o modo Agente selecionado anteriormente; a primeira execução continua no modo Webcam. Parar explicitamente ou voltar ao modo Webcam deve ser respeitado.
