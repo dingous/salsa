@@ -18,10 +18,10 @@ def remember(value,root=ROOT):
   if value not in items:items.append(value)
   items=items[-20:];temp=root/'memory.tmp';temp.write_text(json.dumps(items,ensure_ascii=False),encoding='utf-8');temp.replace(p)
  return len(items)
-def answer(question,root=ROOT):
+def answer(question,root=ROOT,public_environment=False):
  question=text(question)
  settings=load_settings()
- protected=settings.get('sharedEnvironmentProtection',True)
+ protected=public_environment or settings.get('sharedEnvironmentProtection',True)
  if settings['backend']=='chattrade' or (not chat_trade_client.CONFIG.exists() and os.getenv('DINGOUS_PARTNER_BACKEND','ollama').lower()=='chattrade'):
   if protected:return dict(question=question,answer='Modo de privacidade ativo. Consulta ao histórico e aos agentes da empresa bloqueada enquanto o ambiente privado não estiver confirmado.',model='privacy-guard',fineTuned=False,speechAllowed=False)
   from chat_trade_client import ask

@@ -22,6 +22,7 @@ namespace WebcamAvatar
     public class AvatarTracking : MonoBehaviour
     {
         public int port = 5059;
+        public bool NativeSpeaking;
         public float smoothing = 12;
         public bool mirror = true;
         public bool showDiagnostics = false;
@@ -181,6 +182,7 @@ namespace WebcamAvatar
             bool live=Time.unscaledTime-received<.6f;
             expressions.Clear();
             if(live && frame.face && frame.shapes!=null) foreach(var s in frame.shapes) expressions[s.name]=Mathf.Clamp01(s.value);
+            if(NativeSpeaking)expressions["jawOpen"] = .15f+.35f*Mathf.Abs(Mathf.Sin(Time.unscaledTime*12));
             var points=live && frame.pose && frame.points.Length==33 ? frame.points : null;
             Quaternion rotation=Quaternion.identity;
             if(live && frame.face && frame.rotation!=null && frame.rotation.Length==9) {

@@ -70,6 +70,9 @@ namespace WebcamAvatar
                 // VRM faces +Z. Our studio camera is on -Z.
                 candidate.transform.rotation=Quaternion.Euler(0,180,0);
                 candidate.transform.position=Vector3.zero;
+                // Mobile quality presets may truncate skin influences. Preserve
+                // the four glTF weights so shoulders and fingers stay attached.
+                foreach(var mesh in candidate.GetComponentsInChildren<SkinnedMeshRenderer>(true))mesh.quality=SkinQuality.Bone4;
                 var renderers=candidate.GetComponentsInChildren<Renderer>(true);
                 var bounds=new Bounds();bool first=true;
                 foreach(var renderer in renderers){if(first){bounds=renderer.bounds;first=false;}else bounds.Encapsulate(renderer.bounds);}

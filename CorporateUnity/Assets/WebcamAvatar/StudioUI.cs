@@ -29,6 +29,7 @@ namespace WebcamAvatar
         RawImage referenceImage, avatarImage;
         GameObject photoPlaceholder;
         LocalJob voiceListener;Toggle voiceToggle;bool resumeVoice;
+        AndroidRuntime androidRuntime;
         LocalJob partnerJob;InputField partnerQuestion,partnerAnswer;string partnerLast;bool partnerSucceeded,partnerMode;
         [Serializable] class PartnerReply {public string question,answer;}
         LocalJob laboratory;
@@ -81,6 +82,7 @@ namespace WebcamAvatar
             office=avatarCamera.gameObject.AddComponent<CorporateOffice>();office.Show(true);
             Vrm=gameObject.AddComponent<VrmAvatarController>();Vrm.settings=avatar;Vrm.tracking=tracking;
             MakeRoundedSprite(); Build(); RefreshLibrary();
+            if(Application.platform==RuntimePlatform.Android){androidRuntime=gameObject.AddComponent<AndroidRuntime>();androidRuntime.studio=this;androidRuntime.tracking=tracking;}
             int savedIndex=Array.IndexOf(savedFolders,PlayerPrefs.GetString("LastAvatar",""));
             if(savedIndex>=0 && !string.IsNullOrEmpty(JsonUtility.FromJson<AvatarProfile>(File.ReadAllText(Path.Combine(savedFolders[savedIndex],"avatar.json"))).vrmSource))LoadSaved(savedIndex+1);
             else StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));
@@ -241,11 +243,13 @@ namespace WebcamAvatar
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);}
         }
         void SetVoiceListening(bool enabled){
+            if(androidRuntime!=null){androidRuntime.SetListening(enabled);return;}
             if(voiceListener!=null){voiceListener.Dispose();voiceListener=null;}
             if(!enabled){SetStatus("Microfone do Dingous desligado.");return;}
             StopPartner();try{partnerLast=Path.Combine(Storage,"Partner","voice-answer.json");voiceListener=new LocalJob("dingous_listener.py","--output",partnerLast);SetStatus("Abrindo o microfone local. Diga Dingous e sua pergunta.");}catch(Exception e){SetStatus(e.Message,true);}
         }
         void RunPartner(string operation){
+            if(androidRuntime!=null){if(operation=="--question")androidRuntime.Ask(partnerQuestion.text);else SetStatus("Memória e treinamento móvel ainda são administrados no ChatTrade.");return;}
             resumeVoice=voiceListener!=null;SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);
             if(partnerJob!=null){SetStatus("Aguarde a resposta ou pare o áudio.");return;}
             try {
@@ -454,6 +458,7 @@ namespace WebcamAvatar
             responsive.LayoutAdvanced();
         }
         public void SetStatus(string message,bool isError=false) {status.text=message;status.color=isError?new Color(1,.58f,.57f):muted;}
+        public void NativeReply(string question,string answer,string message){if(partnerQuestion!=null&&!string.IsNullOrEmpty(question))partnerQuestion.text=question;if(partnerAnswer!=null&&!string.IsNullOrEmpty(answer))partnerAnswer.text=answer;if(!string.IsNullOrEmpty(message))SetStatus(message);}
         void ModifyColor(Action<AvatarProfile> change)
         {
             if(busy){SetStatus("Aguarde o carregamento terminar.");return;}
@@ -592,6 +597,7 @@ namespace WebcamAvatar
 
         void ToggleTracking()
         {
+            if(androidRuntime!=null){androidRuntime.SetTracking(!androidRuntime.Tracking);SetButtonLabel(trackButton,androidRuntime.Tracking?"Parar rastreamento":"Iniciar rastreamento");return;}
             partnerMode=false;SetVoiceListening(false);StopPartner();StopLaboratory();
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
             try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}

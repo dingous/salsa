@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="br.com.dingous.nativebridge">
+ <uses-permission android:name="android.permission.RECORD_AUDIO" />
+ <uses-permission android:name="android.permission.CAMERA" />
+ <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+ <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+ <uses-feature android:name="android.hardware.camera" android:required="false" />
+ <queries><intent><action android:name="android.intent.action.TTS_SERVICE" /></intent></queries>
+ <application android:networkSecurityConfig="@xml/dingous_network_security">
+  <service android:name="br.com.dingous.avatar.DingousService" android:exported="false" android:foregroundServiceType="microphone|camera" android:stopWithTask="false" />
+ </application>
+</manifest>

@@ -21,6 +21,8 @@ vrm-*.log
 /Web/vendor/*.tgz
 /CorporateUnity/Library/
 /CorporateUnity/Temp/
+/CorporateUnity/Assets/StreamingAssets/AndroidModels/
+/CorporateUnity/Assets/StreamingAssets/AndroidModels.meta
 /CorporateUnity/.utmp/
 /CorporateUnity/Logs/
 /CorporateUnity/Obj/

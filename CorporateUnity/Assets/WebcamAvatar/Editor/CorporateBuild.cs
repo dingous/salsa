@@ -13,10 +13,15 @@ namespace WebcamAvatar.Editor
             EditorUserBuildSettings.buildAppBundle=false;
             PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android,"br.com.dingous.avatar");
             PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android,ScriptingImplementation.IL2CPP);
+            PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android,false);
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,new[]{UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3});
             PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64|AndroidArchitecture.X86_64;
             PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevelAuto;
             PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;
+            var playerSettings=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
+            playerSettings.FindProperty("useCustomMainGradleTemplate").boolValue=true;
+            playerSettings.ApplyModifiedPropertiesWithoutUndo();
             var graphics=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
             var shaders=graphics.FindProperty("m_AlwaysIncludedShaders");
             var toon=Shader.Find("CorporateAvatar/TexturedToon");
@@ -25,7 +30,7 @@ namespace WebcamAvatar.Editor
             if(!found){int index=shaders.arraySize;shaders.InsertArrayElementAtIndex(index);shaders.GetArrayElementAtIndex(index).objectReferenceValue=toon;}
             graphics.ApplyModifiedPropertiesWithoutUndo();AssetDatabase.SaveAssets();
             Directory.CreateDirectory("Build/Android");
-            var result=BuildPipeline.BuildPlayer(EditorBuildSettings.scenes,"Build/Android/DingousAvatar.apk",BuildTarget.Android,BuildOptions.None);
+            var result=BuildPipeline.BuildPlayer(EditorBuildSettings.scenes,"Build/Android/DingousAvatar.apk",BuildTarget.Android,BuildOptions.Development);
             if(result.summary.result!=UnityEditor.Build.Reporting.BuildResult.Succeeded)throw new Exception("Android build failed");
             Debug.Log("DINGOUS_ANDROID_BUILD_PASS");
         }
