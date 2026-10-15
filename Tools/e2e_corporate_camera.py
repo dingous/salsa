@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', type=Path, default=ROOT / 'publish/Windows/AvatarStudio.exe')
 parser.add_argument('--virtual-device', type=int)
+parser.add_argument('--output-dir', type=Path, default=ROOT / 'Validation')
 for flag in ('cartoon', 'gestures', 'preview', 'face-gestures'):
     parser.add_argument('--'+flag, action='store_true')
 options = parser.parse_args()
@@ -28,7 +29,8 @@ if options.virtual_device is None:
 if not 0 <= options.virtual_device < len(devices) or devices[options.virtual_device] != 'OBS Virtual Camera':
     parser.error('O receptor deve ser OBS Virtual Camera; captura física não será salva como evidência.')
 avatar_model = 'cartoon' if '--cartoon' in sys.argv else 'corporate'
-log = ROOT / f'Validation/{avatar_model}-live-player.log'
+options.output_dir = options.output_dir.resolve()
+log = options.output_dir / f'{avatar_model}-live-player.log'
 log.parent.mkdir(exist_ok=True)
 log.write_text('', encoding='utf-8')
 info = subprocess.STARTUPINFO()
@@ -65,7 +67,7 @@ try:
         previous = small
         count += 1
         if count == 60:
-            cv2.imwrite(str(ROOT / f'Validation/{avatar_model}-virtual-output.png'), frame)
+            cv2.imwrite(str(options.output_dir / f'{avatar_model}-virtual-output.png'), frame)
             assert frame[130:680, 360:920].std() > 15, 'Avatar not visible in virtual output'
     elapsed = time.monotonic() - start
     fps = count / elapsed
@@ -86,15 +88,20 @@ try:
     if '--face-gestures' in sys.argv:
         wink = re.search(r'CORPORATE_WINK_SAMPLES left=(\d+) right=(\d+) reopened=(\d+)', text)
         result['winkRenderSamples'] = dict(zip(('left','right','reopened'), map(int,wink.groups()))) if wink else {}
-    elif gestures:
+    if gestures:
         result['gestureAudit'] = json.loads((options.executable.resolve().parent.parent / 'Validation/corporate-gesture-audit.json').read_text(encoding='utf-8'))
-    (ROOT / f'Validation/{avatar_model}-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
+        audit = result['gestureAudit']
+        result['bodyAuditPassed'] = (audit['poseSamples'] > 30 and audit['leftHandSamples'] > 20 and audit['rightHandSamples'] > 20 and all(
+            audit['headDistance'][i] < .23 and audit['avatarHeadDistance'][i] < .3 and audit['armMax'][i]-audit['armMin'][i] > .25 and audit['curlMax'][i]-audit['curlMin'][i] > 20 and audit['avatarCurlMax'][i]-audit['avatarCurlMin'][i] > 15 for i in (0,1)))
+        passed = passed and result['bodyAuditPassed']
+        result['result'] = 'PASS' if passed else 'FAIL'
+    (options.output_dir / f'{avatar_model}-camera-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     print(json.dumps(result))
     assert passed, f'Unity hardware/gesture checks failed; see {avatar_model}-camera-result.json'
 except Exception as error:
     failure = locals().get('result', {'avatar': avatar_model, 'savedRawWebcamImages': False})
     failure.update(result='FAIL', error=type(error).__name__+': '+str(error), log=str(log))
-    (ROOT / f'Validation/{avatar_model}-camera-result.json').write_text(json.dumps(failure, indent=2), encoding='utf-8')
+    (options.output_dir / f'{avatar_model}-camera-result.json').write_text(json.dumps(failure, indent=2), encoding='utf-8')
     print(json.dumps(failure), flush=True)
     raise
 finally:

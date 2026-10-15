@@ -184,3 +184,24 @@ O assembly corrigido foi atualizado em `publish/Windows/AvatarStudio_Data/Manage
 Avaturn foi validado com T1 de rosto estático. MetaHuman foi validado somente com fixture MakeHuman para o caminho de importação, sem personagem MetaHuman real. Corporativo 2 pago continua indisponível. Não foram aprovados serviços autenticados de agenda/agentes do ChatTrade, monitoramento remoto do admin, reconhecimento humano de voz/gestos, privacidade em reunião real ou todos os controles da bandeja.
 
 Resumo estruturado: `Validation/windows-full-e2e/summary.json`. Evidências visuais: `Validation/windows-full-e2e/laboratory.png`, `Validation/corporate-virtual-output.png`, `Validation/cartoon-virtual-output.png` e `publish/Validation/corporate-390.png`.
+
+
+## Webcam real assistida — 15/10/2026, rodada da manhã
+
+Usuário confirmou disponibilidade e recebeu aviso após cada marcador de captura pronta. Webcam 0 e receptor OBS nomeado; sem persistir imagens da câmera física. Três capturas de gestos: 75 segundos de auditoria por avatar/rodada, com 60 segundos de amostragem do receptor, 1801 quadros a aproximadamente 30,02 FPS em cada execução. Rosto, pose e mãos foram detectados em todas as rodadas.
+
+| Rodada | Pacotes | Mão esquerda/direita | Auditoria de corpo | Piscada esquerda/direita no avatar |
+| --- | ---: | ---: | --- | ---: |
+| Cartoon inicial | 1382 | 118 / 832 | Reprovada | 19 / 0 amostras |
+| Corporativo | 1300 | 290 / 620 | Aprovada | 45 / 0 amostras |
+| Cartoon repetição, somente corpo | 1420 | 370 / 378 | Reprovada | Não medida |
+
+No Corporativo, o critério confirmou mãos próximas da cabeça, amplitude dos dois braços, abertura/fechamento dos dedos observados e resposta do rig. A auditoria de dedos usa a média de curvatura de indicador a mínimo; não certifica todos os segmentos e polegares individualmente nem naturalidade visual contínua. O gesto de oração foi solicitado, mas esta auditoria não mede colisão ou contato exato entre as palmas.
+
+No Cartoon repetido, o punho esquerdo saiu do quadro em 1128/1420 amostras (79,4%); a amplitude detectada desse braço foi de 0,110 m, abaixo do critério de 0,25 m. A menor distância rastreada mão/cabeça foi 0,232 m, sem preencher o critério de contato de 0,23 m. O valor sentinela 99 em avatarHeadDistance significa ausência de amostra elegível, não distância física de 99 m. As duas mãos apresentaram variação de curvatura no rig, mas isso não aprova todo o movimento do braço esquerdo.
+
+As piscadas unilaterais não foram aprovadas: apenas um dos lados acumulou amostras válidas nos dois avatares. Diagnóstico adicional direto do rastreador recebeu rosto em 600/600 quadros: picos eyeBlinkLeft=0,681 e eyeBlinkRight=0,696; nenhum quadro satisfez fechamento independente (um acima de 0,5 com outro abaixo de 0,3), e 12 quadros registraram ambos acima de 0,5. Isso mostra o sinal recebido nessa coleta; não demonstra, isoladamente, defeito de blendshape ou que o usuário não executou o gesto. Não foram alterados limiares para converter a falha em aprovação.
+
+**Resultado integral: reprovado.** As três execuções terminaram com código 1 por asserts de gestos, não constituem reprodução do crash nativo registrado de madrugada nem comprovam sua correção. Testes sintéticos anteriores não substituem estas falhas de captura real. A cobertura visual de interpenetrações e a piscada unilateral continuam pendentes.
+
+O executor agora preserva cada rodada em `--output-dir` e registra a auditoria corporal mesmo quando mede piscadas; reprova o resultado caso o corpo não passe. Evidências em `Validation/assisted-20261015/summary.json`, JSON/logs por rodada e `eye-diagnostic.json`. Arquivos locais ignorados pelo Git; somente saída do avatar salva como imagem.
