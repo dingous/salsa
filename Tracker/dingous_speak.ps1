@@ -4,24 +4,28 @@ param([Parameter(Mandatory=$true)][string]$TextPath,
  [ValidateRange(0,100)][int]$Volume=85,
  [string]$OutputPath)
 $ErrorActionPreference='Stop'
-Add-Type -AssemblyName System.Speech
-$dingousVoice=New-Object System.Speech.Synthesis.SpeechSynthesizer
+. (Join-Path $PSScriptRoot 'windows_voice_catalog.ps1')
+$dingousCatalog=@(Get-DingousVoices)
+$dingousSelected=$dingousCatalog | Where-Object {$_.Name -eq $VoiceName} | Select-Object -First 1
+if(!$dingousSelected){$dingousSelected=$dingousCatalog | Where-Object {$_.Gender -eq 'Male' -and ($_.Language -split ';') -contains '416'} | Select-Object -First 1}
+if(!$dingousSelected){$dingousSelected=$dingousCatalog | Where-Object {($_.Language -split ';') -contains '416'} | Select-Object -First 1}
+if(!$dingousSelected){throw 'Instale uma voz local em português do Brasil nas configurações de fala do Windows.'}
+$dingousVoice=New-Object -ComObject SAPI.SpVoice
+$dingousWave=$null
 try {
- $dingousPortuguese=@($dingousVoice.GetInstalledVoices() | Where-Object {$_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'pt-BR'})
- $dingousSelected=$dingousVoice.GetInstalledVoices() | Where-Object {$_.Enabled -and $_.VoiceInfo.Name -eq $VoiceName} | Select-Object -First 1
- if(!$dingousSelected){$dingousSelected=$dingousPortuguese | Select-Object -First 1}
- if(!$dingousSelected){throw 'Instale uma voz local em português do Brasil nas configurações de fala do Windows.'}
- $dingousVoice.SelectVoice($dingousSelected.VoiceInfo.Name)
+ $dingousVoice.Voice=$dingousSelected.Token
  $dingousVoice.Rate=$Rate
  $dingousVoice.Volume=$Volume
- if($OutputPath){$dingousVoice.SetOutputToWaveFile([IO.Path]::GetFullPath($OutputPath))}
- $dingousPrompt=New-Object System.Speech.Synthesis.PromptBuilder($dingousSelected.VoiceInfo.Culture)
- $dingousText=[IO.File]::ReadAllText($TextPath,[Text.Encoding]::UTF8)
- # AppendText escapes text: model output never becomes executable SSML.
- foreach($dingousParagraph in ($dingousText -split '\r?\n\s*\r?\n')){
-  if(!$dingousParagraph.Trim()){continue}
-  $dingousPrompt.AppendText($dingousParagraph.Trim())
-  $dingousPrompt.AppendBreak([TimeSpan]::FromMilliseconds(280))
+ if($OutputPath){
+  $dingousWave=New-Object -ComObject SAPI.SpFileStream
+  $dingousWave.Format.Type=22
+  $dingousWave.Open([IO.Path]::GetFullPath($OutputPath),3,$false)
+  $dingousVoice.AudioOutputStream=$dingousWave
  }
- $dingousVoice.Speak($dingousPrompt)
-} finally {$dingousVoice.Dispose()}
+ $dingousText=[IO.File]::ReadAllText($TextPath,[Text.Encoding]::UTF8)
+ # SVSFIsNotXML: model output is plain text, never executable SSML.
+ [void]$dingousVoice.Speak($dingousText,16)
+} finally {
+ if($dingousWave){$dingousWave.Close();[void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($dingousWave)}
+ [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($dingousVoice)
+}

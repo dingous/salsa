@@ -41,6 +41,7 @@ namespace WebcamAvatar.Editor
         public static void Windows()
         {
             CreateDemo.CreateStudio();
+            DingousBranding.Apply();
             var graphics=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
             var shaders=graphics.FindProperty("m_AlwaysIncludedShaders");
             var toon=Shader.Find("CorporateAvatar/TexturedToon");

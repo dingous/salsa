@@ -18,11 +18,12 @@ namespace WebcamAvatar {
                 Button("Abrir página do fornecedor",advancedPanel.transform,24,266,322,44,()=>Application.OpenURL("https://assetstore.unity.com/packages/tools/ai-ml-integration/real-time-full-body-tracking-system-350552"));
             }else if(option==4){
                 Label("Importe um MetaHuman convertido para VRM, com corpo Humanoid, dedos e blendshapes ARKit. O personagem MetaHuman não está incluído.",advancedPanel.transform,24,68,322,92,14,muted);
-                Button("Guia oficial de exportação ↗",advancedPanel.transform,24,174,322,38,()=>Application.OpenURL("https://dev.epicgames.com/documentation/metahuman/metahuman-creator-export-tool-in-unreal-engine"));
+                Button("Guia de exportação",advancedPanel.transform,24,174,156,38,()=>Application.OpenURL("https://dev.epicgames.com/documentation/metahuman/metahuman-creator-export-tool-in-unreal-engine"));
+                Button("Analisar DNA (.dna)",advancedPanel.transform,190,174,156,38,()=>{if(busy)return;try{var path=PhotoPicker.Pick(dna:true);if(path!=null)StartCoroutine(InspectMetaHumanDna(path));}catch(Exception e){SetStatus(e.Message,true);}});
                 Button("Importar MetaHuman preparado .vrm",advancedPanel.transform,24,224,322,40,()=>{if(busy)return;try{var path=PhotoPicker.Pick(true);if(path!=null)StartCoroutine(ImportMetaHumanFile(path));}catch(Exception e){SetStatus(e.Message+" Use o link VRM abaixo no Android.",true);}},true);
                 var download=Input("Link HTTPS do MetaHuman preparado .vrm",advancedPanel.transform,24,278,322,38);
                 Button("Carregar MetaHuman pelo link",advancedPanel.transform,24,326,322,38,()=>{if(!busy)StartCoroutine(DownloadAvaturn(download.text,true));});
-                Label("DNA, RigLogic, .uasset e FBX bruto não são executados aqui. Prepare o personagem no Unity/UniVRM. Sem blendshapes vinculados, o rosto permanece estático.",advancedPanel.transform,24,382,322,104,13,muted);
+                Label("Windows: o DNA pode ser analisado pelo OpenRigLogic local. Isso não carrega a aparência. Para renderizar, use VRM preparado com malha, materiais e expressões vinculadas.",advancedPanel.transform,24,382,322,104,13,muted);
             }else{
                 Label("Criação online: fotos processadas pelo Avaturn.\nEscolha T2 para olhos e boca animados.\nA demonstração T1 tem rosto estático.",advancedPanel.transform,24,64,322,72,14,muted);
                 Button("Usar demonstração Avaturn · T1",advancedPanel.transform,24,138,322,32,()=>{
@@ -43,6 +44,22 @@ namespace WebcamAvatar {
             Button("Voltar",advancedPanel.transform,24,508,322,34,()=>{Destroy(advancedPanel);advancedPanel=null;if(returnToAgent)SetPresentation(true);});responsive.LayoutAdvanced();
         }
         public IEnumerator ImportAvaturnFile(string path)=>ImportFrameworkFile(path,false);
+        [Serializable] class MetaHumanDnaReport {public int rawControls,joints,meshes,vertices;public bool hasGeometry;}
+        public IEnumerator InspectMetaHumanDna(string path){
+            if(busy)yield break;
+            busy=true;string message="O analisador não retornou um resultado.",error=null;LocalJob job=null;
+            try{job=new LocalJob("metahuman_dna.py","--file",path);}catch(Exception e){error=e.Message;}
+            if(job!=null){using(job){
+                float deadline=Time.realtimeSinceStartup+30;
+                while(!job.Finished&&Time.realtimeSinceStartup<deadline)yield return null;
+                if(job.Finished)job.Process.WaitForExit(); // Flush redirected output before parsing the completed job.
+                if(!job.Finished||job.ExitCode!=0)error=job.FriendlyError("Falha ao analisar DNA localmente.");
+                else while(job.Output.TryDequeue(out var line))if(line.StartsWith("METAHUMAN_DNA|")){
+                    try{var data=JsonUtility.FromJson<MetaHumanDnaReport>(line.Substring(14));message="OpenRigLogic: "+data.rawControls+" controles, "+data.joints+" ossos, "+data.vertices+" vértices. "+(data.hasGeometry?"Dados geométricos presentes; prepare o VRM para renderizar.":"Sem geometria: este DNA não contém um personagem renderizável.");}catch(Exception e){error=e.Message;}
+                }
+            }}
+            busy=false;SetStatus(error??message,error!=null);
+        }
         public IEnumerator ImportMetaHumanFile(string path)=>ImportFrameworkFile(path,true);
         IEnumerator ImportFrameworkFile(string path,bool metaHuman){
             if(busy)yield break;

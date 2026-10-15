@@ -3,7 +3,8 @@ $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $dingousTray=New-Object System.Windows.Forms.NotifyIcon
-$dingousTray.Icon=[System.Drawing.SystemIcons]::Application
+$dingousIcon=Join-Path $PSScriptRoot 'DingousAvatar.ico'
+$dingousTray.Icon=if(Test-Path -LiteralPath $dingousIcon){New-Object System.Drawing.Icon($dingousIcon)}else{[System.Drawing.SystemIcons]::Application}
 $dingousTray.Text='Dingous · agente pessoal'
 $dingousMenu=New-Object System.Windows.Forms.ContextMenuStrip
 function Send-DingousCommand([string]$value){

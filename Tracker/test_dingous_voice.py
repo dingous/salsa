@@ -1,10 +1,25 @@
 import json,os,tempfile,unittest,io
 from pathlib import Path
 from unittest.mock import patch
-from dingous_listener import wake_command
+from dingous_listener import wake_command,VoiceActivityGate,CommandDeduplicator
+import numpy as np
 import chat_trade_client as client
 from voice_service import VoiceService
 class VoiceTests(unittest.TestCase):
+ def test_repeated_command_is_suppressed_but_later_retry_is_allowed(self):
+  guard=CommandDeduplicator()
+  self.assertTrue(guard.accept('Diga olá!',100))
+  self.assertFalse(guard.accept('diga olá',105))
+  self.assertTrue(guard.accept('Outra pergunta',106))
+  self.assertTrue(guard.accept('Outra pergunta',122))
+ def test_quiet_voice_is_not_discarded(self):
+  gate=VoiceActivityGate()
+  self.assertFalse(gate.active(np.zeros(1600,dtype=np.float32)))
+  wave=.003*np.sin(np.arange(1600,dtype=np.float32)*.1)
+  self.assertTrue(gate.active(wave))
+ def test_low_noise_does_not_trigger_speech(self):
+  gate=VoiceActivityGate()
+  for _ in range(100):self.assertFalse(gate.active(np.full(1600,.0002,dtype=np.float32)))
  def test_wake_and_command(self):self.assertEqual(wake_command('Dingous, diga olá'),'diga olá')
  def test_no_wake(self):self.assertIsNone(wake_command('como está o tempo'))
  def test_wake_only(self):self.assertEqual(wake_command('Dingous'),'')

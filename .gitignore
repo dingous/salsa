@@ -8,6 +8,7 @@
 *.log
 /Tracker/.venv/
 /Tracker/models/
+/Tracker/native/
 __pycache__/
 *.csproj
 *.sln

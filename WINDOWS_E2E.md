@@ -205,3 +205,24 @@ As piscadas unilaterais não foram aprovadas: apenas um dos lados acumulou amost
 **Resultado integral: reprovado.** As três execuções terminaram com código 1 por asserts de gestos, não constituem reprodução do crash nativo registrado de madrugada nem comprovam sua correção. Testes sintéticos anteriores não substituem estas falhas de captura real. A cobertura visual de interpenetrações e a piscada unilateral continuam pendentes.
 
 O executor agora preserva cada rodada em `--output-dir` e registra a auditoria corporal mesmo quando mede piscadas; reprova o resultado caso o corpo não passe. Evidências em `Validation/assisted-20261015/summary.json`, JSON/logs por rodada e `eye-diagnostic.json`. Arquivos locais ignorados pelo Git; somente saída do avatar salva como imagem.
+
+## Agente Windows — mensagens e segundo plano (15/10/2026)
+
+- Corrigido o compositor: limpa a pergunta depois que o processo local aceita o envio; falha ao iniciar preserva o texto. O caminho Android usa a mesma limpeza, sem certificação Android nesta rodada.
+- Build Unity Windows concluído; DLL atualizada em publish/Windows e publish/WindowsE2E (hash idêntico ao build). Aplicativo já aberto precisa ser reiniciado para usar a correção.
+- 113 testes Python aprovados. E2E com Ollama local aprovou resposta integral, arquivo de resposta e limpeza do compositor para Cartoon e Corporativo.
+- E2E de isolamento aprovado no pacote WindowsE2E: câmera não anima o Agente, comandos movem o rig, idle pisca/boceja e retorno ao modo Webcam funciona. Log: Validation/agent-isolation-20261015.log.
+- Segundo plano ainda não certificado integralmente: houve uma rodada Corporativo com 217 frames sem foco, mas rodadas seguintes não observaram perda de foco pelo Application.isFocused mesmo com outra janela ativada. O teste permanece reprovado; runInBackground=true sozinho não constitui E2E aprovado. Logs: Validation/agent-background-e2e.log, agent-background-hidden-e2e.log, agent-background-final-e2e.log.
+- Proteção de ambiente compartilhado ativa: bloqueia áudio nesta configuração. Resposta por texto aprovada; não foi certificado wake word real, microfone contínuo, lembretes ou funcionamento prolongado na bandeja nesta rodada. Não alterar proteção para forçar aprovação.
+
+## Microfone Intel Smart Sound — roteamento corrigido (15/10/2026)
+
+As entradas processadas MME/WASAPI entregavam praticamente zero, mas a entrada WDM-KS “Grupo de microfones 3 ()” possui sinal real nos canais 3/4. Configuração local por nome/API, canal de índice 2, 16 kHz e seis canais; não modifica o registro nem os drivers. A captura seleciona o canal antes de converter para PCM mono do ASR.
+
+Teste físico com frase TTS fixa pelos alto-falantes: pico 0,24585, 119 blocos ativos de 120, transcrição e palavra de ativação reconhecidas pelo Whisper small. Nenhum áudio captado foi salvo; nenhuma transcrição do ambiente foi impressa. Isso valida o caminho de captura/ASR com a frase de teste e não certifica a voz do usuário ou resposta completa do ChatTrade. Nove testes de voz aprovados. Scripts atualizados nos três pacotes locais; a escuta em execução precisa ser reaberta para carregar o novo roteamento.
+
+## E2E assistido do microfone — revisão do canal (15/10/2026)
+
+A seleção anterior do canal 3 foi insuficiente: reconheceu a reprodução pelos alto-falantes, mas não a voz do usuário. Na comparação assistida sem playback, os canais 1 e 2 reconheceram fala e a palavra de ativação; o canal 3 não reconheceu fala. Perfil local corrigido para canal 1 (índice 0), API WDM-KS e ganho limitado de até 16x antes do Whisper/VAD. Pacotes locais atualizados. Isso substitui a recomendação anterior de canal 3.
+
+Confirmação final com o mesmo adaptador do aplicativo: pico 0,02875; 14 blocos acima do limiar; fala transcrita, mas palavra de ativação NÃO reconhecida. Resultado integral REPROVADO. Não certificar resposta do agente nem conexão ChatTrade a partir deste teste. A checagem de duplicidade no executor é uma regressão sobre o texto reconhecido, não uma certificação de eco físico. Evidências locais: Validation/microphone-assisted-channels.json e Validation/microphone-channel1-final.json. Áudio e transcrições não foram persistidos.

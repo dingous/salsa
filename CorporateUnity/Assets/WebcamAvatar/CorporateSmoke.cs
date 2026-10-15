@@ -35,6 +35,26 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--metahuman-dna-only")>=0){
+                var arguments=Environment.GetCommandLineArgs();int dnaIndex=Array.IndexOf(arguments,"--dna-file");
+                Check(dnaIndex>=0&&dnaIndex+1<arguments.Length,"Official DNA path supplied");
+                if(dnaIndex>=0&&dnaIndex+1<arguments.Length){
+                    var previous=ui.Vrm.SourcePath;
+                    yield return ui.InspectMetaHumanDna(arguments[dnaIndex+1]);
+                    var dnaStatus=(UnityEngine.UI.Text)typeof(StudioUI).GetField("status",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
+                    Check(dnaStatus.text.Contains("OpenRigLogic:"),"DNA result is visible in Windows interface");
+                    // Inspect the same offline job independently of display text.
+                    using(var job=new LocalJob("metahuman_dna.py","--file",arguments[dnaIndex+1])){
+                        float deadline=Time.realtimeSinceStartup+30;while(!job.Finished&&Time.realtimeSinceStartup<deadline)yield return null;
+                        bool message=false;if(job.Finished){job.Process.WaitForExit();while(job.Output.TryDequeue(out var line))message|=line.StartsWith("METAHUMAN_DNA|")&&line.Contains("Epic OpenRigLogic");}
+                        Check(job.Finished&&job.ExitCode==0&&message,"Official OpenRigLogic reads and evaluates actual DNA via Windows bridge");
+                    }
+                    Check(ui.Vrm.Active&&ui.Vrm.SourcePath==previous,"DNA analysis preserves the existing avatar");
+                    Call(ui,"ShowFramework",4);yield return null;
+                    if(SystemInfo.graphicsDeviceType!=UnityEngine.Rendering.GraphicsDeviceType.Null)yield return ui.CaptureInterface(Path.GetFullPath("Validation/metahuman-dna-panel.png"));
+                }
+                Debug.Log("CORPORATE_METAHUMAN_DNA_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--lipsync-only")>=0){
                 var arguments=Environment.GetCommandLineArgs();int index=Array.IndexOf(arguments,"--speech-file");
                 Check(index>=0&&index+1<arguments.Length,"Speech calibration WAV provided");
@@ -220,10 +240,15 @@ namespace WebcamAvatar
                 foreach(int mode in new[]{0,1}){
                     Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
                     Call(ui,"ShowPartner");
+                    if(Array.IndexOf(Environment.GetCommandLineArgs(),"--background-e2e")>=0){Debug.Log("CORPORATE_BACKGROUND_READY model="+mode);float focusDeadline=Time.realtimeSinceStartup+45;while(Application.isFocused&&Time.realtimeSinceStartup<focusDeadline)yield return null;}
                     var question=(InputField)ui.GetType().GetField("partnerQuestion",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);question.text="Apresente-se como Dingous em uma única frase curta.";
                     Call(ui,"RunPartner","--question");float deadline=Time.realtimeSinceStartup+100;
+                    Check(string.IsNullOrEmpty(question.text),"Composer clears after accepted submission model "+mode);
+                    Check(Application.runInBackground,"Background execution is enabled model "+mode);
                     var jobField=ui.GetType().GetField("partnerJob",BindingFlags.NonPublic|BindingFlags.Instance);
-                    while(jobField.GetValue(ui)!=null&&Time.realtimeSinceStartup<deadline)yield return null;
+                    int unfocusedFrames=0;
+                    while(jobField.GetValue(ui)!=null&&Time.realtimeSinceStartup<deadline){if(!Application.isFocused)unfocusedFrames++;yield return null;}
+                    if(Array.IndexOf(Environment.GetCommandLineArgs(),"--background-e2e")>=0)Check(unfocusedFrames>10,"Agent updates while unfocused model "+mode+" frames="+unfocusedFrames);
                     var response=(InputField)ui.GetType().GetField("partnerAnswer",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
                     Check((bool)ui.GetType().GetField("partnerSucceeded",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui)&&jobField.GetValue(ui)==null&&response.text!="Dingous está pensando…"&&response.text.Length>10,"Partner answer and speech process completed model "+mode);
                     string replyPath=(string)ui.GetType().GetField("partnerLast",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);

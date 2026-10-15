@@ -166,10 +166,10 @@ namespace WebcamAvatar
             var label=Label(content,image.transform,12,0,w-24,h,14,white,FontStyle.Bold);label.alignment=TextAnchor.MiddleCenter;
             button.onClick.AddListener(()=>action());return button;
         }
-        InputField Input(string placeholder,Transform parent,float x,float y,float w,float h)
+        InputField Input(string placeholder,Transform parent,float x,float y,float w,float h,bool agentMessage=false)
         {
             var image=Panel("Campo",parent,x,y,w,h,field);image.raycastTarget=true;
-            var input=image.gameObject.AddComponent<InputField>();input.targetGraphic=image;
+            InputField input=agentMessage?image.gameObject.AddComponent<AgentMessageInput>():image.gameObject.AddComponent<InputField>();input.targetGraphic=image;
             var text=Label("",image.transform,14,0,w-28,h,15,white);text.alignment=TextAnchor.MiddleLeft;
             var hint=Label(placeholder,image.transform,14,0,w-28,h,15,muted);hint.alignment=TextAnchor.MiddleLeft;
             input.textComponent=text;input.placeholder=hint;input.characterLimit=48;return input;
@@ -309,7 +309,8 @@ namespace WebcamAvatar
             Label("MODO AGENTE · DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
             Label("IA local · áudio · memória explícita",advancedPanel.transform,24,68,322,24,13,muted);
             voiceToggle=Toggle("Escutar Dingous · microfone local",advancedPanel.transform,24,98,322,false,SetVoiceListening);
-            partnerQuestion=Input("Sua dúvida ou preferência",advancedPanel.transform,24,134,322,66);partnerQuestion.lineType=InputField.LineType.MultiLineNewline;partnerQuestion.characterLimit=2000;
+            partnerQuestion=Input("Sua dúvida · Enter envia · Shift+Enter quebra linha",advancedPanel.transform,24,134,322,66,true);partnerQuestion.lineType=InputField.LineType.MultiLineNewline;partnerQuestion.characterLimit=2000;
+            ((AgentMessageInput)partnerQuestion).SendMessage=()=>RunPartner("--question");
             partnerAnswer=Input("Resposta do Dingous",advancedPanel.transform,24,212,322,128);partnerAnswer.lineType=InputField.LineType.MultiLineNewline;partnerAnswer.readOnly=true;partnerAnswer.characterLimit=0;partnerAnswer.textComponent.alignment=TextAnchor.UpperLeft;partnerAnswer.text="Pergunte algo para começar.";
             Button("Perguntar e ouvir",advancedPanel.transform,24,352,322,40,()=>RunPartner("--question"),true);
             Button("Guardar preferência",advancedPanel.transform,24,402,322,32,()=>RunPartner("--remember"));
@@ -345,10 +346,10 @@ namespace WebcamAvatar
             // Presentation hides the configuration canvas, so it needs its own editable composer.
             float composerY=height-66;
             GUI.Box(new Rect(16,composerY-8,width-32,58),GUIContent.none);
-            GUI.SetNextControlName("AgentQuestion");
-            if(partnerQuestion!=null)partnerQuestion.text=GUI.TextField(new Rect(28,composerY,width-142,36),partnerQuestion.text,2000);
-            bool submit=Event.current.type==EventType.KeyDown && Event.current.keyCode==KeyCode.Return && GUI.GetNameOfFocusedControl()=="AgentQuestion";
+            bool submit=Event.current.type==EventType.KeyDown && (Event.current.keyCode==KeyCode.Return||Event.current.keyCode==KeyCode.KeypadEnter) && !Event.current.shift && UnityEngine.Input.compositionString.Length==0 && GUI.GetNameOfFocusedControl()=="AgentQuestion";
             if(submit)Event.current.Use();
+            GUI.SetNextControlName("AgentQuestion");
+            if(partnerQuestion!=null)partnerQuestion.text=GUI.TextArea(new Rect(28,composerY,width-142,36),partnerQuestion.text,2000);
             bool previousEnabled=GUI.enabled;GUI.enabled=partnerJob==null;
             if(GUI.Button(new Rect(width-106,composerY,78,36),"Enviar")||submit)RunPartner("--question");
             GUI.enabled=previousEnabled;
@@ -366,6 +367,8 @@ namespace WebcamAvatar
         }
         void SetVoiceListening(bool enabled){
             if(androidRuntime!=null){androidRuntime.SetListening(enabled);return;}
+            // Repeated UI/resume events must reuse this application's live listener.
+            if(enabled&&voiceListener!=null&&!voiceListener.Finished)return;
             if(voiceListener!=null){voiceListener.Dispose();voiceListener=null;tracking.NativeSpeaking=false;speechPlayback?.Stop();}
             if(!enabled){SetStatus("Microfone do Dingous desligado.");return;}
             StopPartner();try{partnerLast=Path.Combine(Storage,"Partner","voice-answer.json");voiceListener=new LocalJob("dingous_listener.py","--output",partnerLast);SetStatus("Abrindo o microfone local. Diga Dingous e sua pergunta.");}catch(Exception e){SetStatus(e.Message,true);}
@@ -373,13 +376,14 @@ namespace WebcamAvatar
         void RunPartner(string operation){
             if(partnerJob!=null){SetStatus("Aguarde a resposta ou pare o áudio.");return;}
             if(operation=="--question" && (partnerQuestion==null || string.IsNullOrWhiteSpace(partnerQuestion.text))){SetStatus("Digite sua pergunta ou use a escuta por voz.");return;}
-            if(androidRuntime!=null){if(operation=="--question")androidRuntime.Ask(partnerQuestion.text);else SetStatus("Memória e treinamento móvel ainda são administrados no ChatTrade.");return;}
+            if(androidRuntime!=null){if(operation=="--question"){androidRuntime.Ask(partnerQuestion.text);partnerQuestion.text="";}else SetStatus("Memória e treinamento móvel ainda são administrados no ChatTrade.");return;}
             resumeVoice=voiceListener!=null;SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);
             try {
                 if(operation=="--approve"&&string.IsNullOrEmpty(partnerLast)){SetStatus("Receba uma resposta antes de aprovar.");return;}
                 var args=new List<string>{operation,operation=="--approve"?partnerLast:partnerQuestion.text};
                 if(operation=="--question"){partnerLast=Path.Combine(Storage,"Partner",Guid.NewGuid().ToString("N")+".json");args.Add("--output");args.Add(partnerLast);args.Add("--speak");partnerAnswer.text="Dingous está pensando…";}
                 partnerSucceeded=false;partnerJob=new LocalJob("dingous_partner.py",args.ToArray());
+                if(operation=="--question")partnerQuestion.text="";
             }catch(Exception e){SetStatus(e.Message,true);}
         }
         void StopPartner(){resumeVoice=false;speechPlayback?.Stop();if(partnerJob!=null){partnerJob.Dispose();partnerJob=null;tracking.NativeSpeaking=false;SetStatus("Parceiro interrompido.");}}

@@ -1,16 +1,33 @@
 [CmdletBinding()]
-param([string]$OutputPath, [switch]$SkipBuild, [switch]$SkipTracker)
+param([string]$OutputPath, [switch]$SkipBuild, [switch]$SkipTracker, [switch]$StopRunning)
 $ErrorActionPreference='Stop'
 $avatarRoot=Split-Path $PSScriptRoot -Parent
 if(!$OutputPath){$OutputPath=Join-Path $avatarRoot 'publish/Windows/AvatarStudio.exe'}
 $OutputPath=[IO.Path]::GetFullPath($OutputPath)
 if([IO.Path]::GetExtension($OutputPath) -ne '.exe'){throw 'OutputPath deve ser um executavel .exe.'}
+$avatarRunning=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and [string]::Equals($_.ExecutablePath,$OutputPath,[StringComparison]::OrdinalIgnoreCase)})
+if($avatarRunning.Count -and !$StopRunning){throw "O aplicativo de destino está aberto. Feche-o pela bandeja ou use -StopRunning para atualizar: $OutputPath"}
+foreach($avatarProcess in $avatarRunning){
+    # Stop only the exact exported executable and its owned microphone/tray children.
+    & taskkill.exe /PID $avatarProcess.ProcessId /T /F | Out-Null
+    if($LASTEXITCODE -ne 0 -and (Get-Process -Id $avatarProcess.ProcessId -ErrorAction SilentlyContinue)){throw 'Não foi possível encerrar a instância exportada.'}
+    $avatarWait=Get-Process -Id $avatarProcess.ProcessId -ErrorAction SilentlyContinue
+    if($avatarWait -and !$avatarWait.WaitForExit(5000)){throw 'O aplicativo ainda está encerrando. Tente exportar novamente.'}
+}
 if(!$SkipBuild){& (Join-Path $PSScriptRoot 'build-corporate.ps1')}
 $avatarSource=Join-Path $avatarRoot 'CorporateUnity/Build'
 $avatarDestination=Split-Path $OutputPath -Parent
 $avatarName=[IO.Path]::GetFileNameWithoutExtension($OutputPath)
 New-Item -ItemType Directory -Force -Path $avatarDestination | Out-Null
-Copy-Item -LiteralPath (Join-Path $avatarSource 'CorporateAvatarStudio.exe') -Destination $OutputPath -Force
+$avatarCopyDeadline=[DateTime]::UtcNow.AddSeconds(10)
+while($true){
+    try{Copy-Item -LiteralPath (Join-Path $avatarSource 'CorporateAvatarStudio.exe') -Destination $OutputPath -Force;break}
+    catch [System.IO.IOException]{
+        # Windows may retain the image mapping briefly after process termination.
+        if([DateTime]::UtcNow -ge $avatarCopyDeadline){throw}
+        Start-Sleep -Milliseconds 250
+    }
+}
 $avatarData=Join-Path $avatarDestination ($avatarName+'_Data')
 New-Item -ItemType Directory -Force -Path $avatarData | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $avatarSource 'CorporateAvatarStudio_Data') -Force | Copy-Item -Destination $avatarData -Recurse -Force

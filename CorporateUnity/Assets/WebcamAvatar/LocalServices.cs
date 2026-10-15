@@ -111,13 +111,14 @@ namespace WebcamAvatar
         [DllImport("comdlg32.dll",CharSet=CharSet.Unicode,SetLastError=true)]
         static extern bool GetOpenFileName([In,Out] OpenFileName value);
         [DllImport("user32.dll")] static extern IntPtr GetActiveWindow();
-        public static string Pick(bool vrm=false,bool glb=false)
+        public static string Pick(bool vrm=false,bool glb=false,bool dna=false)
         {
             if(UnityEngine.Application.platform!=UnityEngine.RuntimePlatform.WindowsEditor && UnityEngine.Application.platform!=UnityEngine.RuntimePlatform.WindowsPlayer)
                 throw new PlatformNotSupportedException("O seletor de fotos desta versão funciona no Windows.");
             var dialog=new OpenFileName {owner=GetActiveWindow()};
             if(vrm){dialog.filter="Avatar VRM\0*.vrm\0\0";dialog.title="Escolha seu avatar VRM";}
             if(glb){dialog.filter="Avatar Avaturn GLB ou VRM\0*.glb;*.vrm\0\0";dialog.title="Escolha seu avatar Avaturn";}
+            if(dna){dialog.filter="MetaHuman DNA\0*.dna\0\0";dialog.title="Analisar DNA MetaHuman localmente";}
             return GetOpenFileName(dialog) ? dialog.file.ToString() : null;
         }
     }

@@ -3,6 +3,11 @@ from pathlib import Path
 from unittest.mock import patch
 import dingous_partner as partner
 class PartnerTests(unittest.TestCase):
+ def test_local_model_cannot_confirm_a_reminder_without_tools(self):
+  with patch('dingous_partner.load_settings',return_value=dict(partner.load_settings(),backend='ollama')),patch('dingous_partner.urllib.request.urlopen') as llm:
+   result=partner.answer('Me lembre de revisar o documento às 18h')
+   self.assertEqual(result['model'],'capability-guard')
+   self.assertFalse(result['actionExecuted']);self.assertFalse(result['speechAllowed']);llm.assert_not_called()
  def test_memory_deduplicates(self):
   with tempfile.TemporaryDirectory() as folder:
    root=Path(folder);partner.remember('Prefiro português',root);self.assertEqual(partner.remember('Prefiro português',root),1)
