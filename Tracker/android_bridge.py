@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from dingous_partner import answer,ROOT
 from local_ai import ensure_local_ai
+from fitness_agent import matches as fitness_matches
 LOCK=threading.Lock()
 def token():
  path=ROOT/'android-pair-token.txt';path.parent.mkdir(parents=True,exist_ok=True)
@@ -27,7 +28,9 @@ def handler(secret):
     self.connection.settimeout(10);body=json.loads(self.rfile.read(size));question=body.get('question')
     if not isinstance(question,str) or not 0<len(question.strip())<=2000:raise ValueError('Pergunta inválida.')
     if not LOCK.acquire(blocking=False):self.reply(409,{'error':'Dingous já está respondendo.'});return
-    try:ensure_local_ai();result=answer(question,public_environment=True)
+    try:
+     if not fitness_matches(question):ensure_local_ai()
+     result=answer(question,public_environment=True)
     finally:LOCK.release()
     self.reply(200,result)
    except Exception as e:self.reply(400,{'error':str(e)})

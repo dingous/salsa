@@ -22,6 +22,11 @@ def answer(question,root=ROOT,public_environment=False):
  question=text(question)
  settings=load_settings()
  protected=public_environment or settings.get('sharedEnvironmentProtection',True)
+ from fitness_agent import matches as fitness_matches, response as fitness_response
+ if fitness_matches(question):
+  result=fitness_response(question,settings,protected)
+  result['voiceSettings']={k:settings[k] for k in ('voiceName','voiceRate','voiceVolume')}
+  return result
  if settings['backend']=='chattrade' or (not chat_trade_client.CONFIG.exists() and os.getenv('DINGOUS_PARTNER_BACKEND','ollama').lower()=='chattrade'):
   if protected:return dict(question=question,answer='Modo de privacidade ativo. Consulta ao histórico e aos agentes da empresa bloqueada enquanto o ambiente privado não estiver confirmado.',model='privacy-guard',fineTuned=False,speechAllowed=False)
   from chat_trade_client import ask
@@ -50,7 +55,8 @@ def main():
  if args.remember:remember(args.remember);print('READY|Preferência salva',flush=True);return
  if args.approve:approve(json.loads(Path(args.approve).read_text(encoding='utf-8')));print('READY|Exemplo aprovado para treinamento',flush=True);return
  settings=load_settings()
- if settings['backend']=='ollama':ensure_local_ai()
+ from fitness_agent import matches as fitness_matches
+ if settings['backend']=='ollama' and not fitness_matches(args.question or ''):ensure_local_ai()
  result=answer(args.question);target=Path(args.output);target.parent.mkdir(parents=True,exist_ok=True);target.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');print('ANSWER|'+str(target),flush=True)
  if args.speak:
   speech=target.with_suffix('.txt');speech.write_text(result['answer'],encoding='utf-8')
