@@ -36,6 +36,20 @@ Testes: `node Web/rig.test.mjs`, `node Web/tracking-utils.test.mjs` e `Tracker/.
 
 O cookie `avatar_appearance_v1` guarda cores, apresentação, cenário, enquadramento e espelhamento por 180 dias (SameSite=Lax e Secure em HTTPS), restrito ao caminho do Avatar no site. Preferências antigas do perfil de apresentação são migradas. Arquivos VRM importados ficam no IndexedDB deste navegador, depois de carregados com sucesso, sem upload ao servidor. Ao escolher o modelo de demonstração, o avatar importado salvo é removido. Limpar dados do navegador remove a personalização; outros navegadores e dispositivos não compartilham essas configurações.
 
+## Corporativo 3 · Avaturn
+
+Em **Framework do avatar**, selecione **Corporativo 3 · Avaturn**. Use a demonstração T1 ou importe um `.glb`. **Abrir criador Avaturn** carrega o SDK oficial 1.1.0 e o projeto `demo.avaturn.dev`; a criação por foto usa o serviço online do fornecedor. Para produção, informe a URL do seu projeto Avaturn. A exportação retorna ao renderer e pode ser baixada como VRM para o aplicativo Windows. Para animações faciais, escolha T2; o modelo T1 de referência só tem corpo/mãos. Não foi configurada API paga nem conta de produção.
+
+O adaptador `avaturn-glb.js` preserva malhas, pesos, materiais e metadados originais, adicionando bindings VRM de ossos/expressões. Rejeita arquivos acima de 150 MB, rigs incompletos e buffers/texturas externos. O cookie continua guardando preferências; o arquivo importado fica no IndexedDB local, sem upload para a ponte. A política CSP permite somente os domínios do criador Avaturn e os destinos de exportação indicados; não carrega JavaScript remoto no documento principal. O SDK e a licença estão em `vendor/avaturn`.
+
+Testes: `node Tools/test-avaturn.mjs` e `node Tools/test-avaturn-renderer.mjs` (a partir da raiz). O segundo importa a referência real pelo GLTFLoader/three-vrm e executa as verificações de corpo; decodificação de texturas é substituída no Node e não comprova renderização visual.
+
+## Corporativo 4 · MetaHuman
+
+Selecione o framework **Corporativo 4 · MetaHuman** e importe um `.vrm` 1.0 previamente preparado. O personagem MetaHuman não está incluído. O painel tem o link do fluxo oficial de exportação Epic; DNA/RigLogic/FBX bruto não são executados no navegador. O arquivo precisa conter Humanoid, todas as articulações dos dedos e texturas incorporadas. Expressões exigem blendshapes ARKit vinculados; na ausência deles, a interface informa rosto estático.
+
+`metahuman-vrm.js` valida o arquivo sem alterar seu nome, metadados VRM, malhas ou binários. Um marcador de framework em `asset.extras` preserva a categoria após restaurar o arquivo no IndexedDB. A importação é local; não envia o personagem para a Epic ou a ponte. Teste: `node Tools/test-metahuman.mjs`, usando MakeHuman apenas como fixture de compatibilidade, sem declarar que ele seja um MetaHuman.
+
 ## Pose avançada
 
 Full é o modelo padrão de pose no navegador e no rastreador Python (incluindo Unity). Heavy é selecionável na web ou com `--pose-quality heavy` no Python. Ambos usam os modelos oficiais MediaPipe float16 v1. Troque a precisão com a webcam parada; a escolha fica no cookie. Heavy exige mais processamento. O avatar web aplica filtragem One Euro por landmark, rejeição de saltos impossíveis, limites de flexão dos cotovelos (150°) e joelhos (160°), orientação do quadril e retorno suave ao repouso. Partes fora do enquadramento não conduzem o deslocamento do corpo. A filtragem e os limites novos são do rig web; o Unity recebe o modelo Full por meio do rastreador Python e mantém seu retargeting nativo.

@@ -1,5 +1,9 @@
 # Ferramentas da versão corporativa
 
+Lip sync Windows: `install_salsa.py` restaura o SALSA real do cache Unity Asset Store licenciado. Consulte `../LIPSYNC_SALSA.md`. A DLL comercial não é enviada ao Git; os builds restauram a dependência local.
+
+`setup-avatar-eyes.ps1` instala o YOLOX Nano oficial, verificando SHA256. A percepção no modo Agente é administrada pelo ChatTrade; consulte `../AVATAR_EYES.md`.
+
 O aplicativo anterior permanece na raiz. O produto novo está em `CorporateUnity`.
 Os pacotes UniVRM são compartilhados com o diretório `Packages` original.
 
@@ -22,6 +26,15 @@ Os arquivos de download, o projeto `.blend` e os builds ficam fora do Git.
 Teste sintético do executável: `CorporateAvatarStudio.exe --corporate-smoke`.
 Ele valida estilos, acessórios, layout, pose, mãos, expressões e referência
 fotográfica, sem ativar a webcam. Use `-logFile` para salvar os resultados.
+
+Para repetir a regressão do pacote Windows exportado, execute
+`powershell -File Tools/test-windows-release.ps1`. O script testa os 12 presets,
+o rig feminino, paridade dos estilos/modos, contato de mãos/rosto, isolamento
+do Agente, o modelo Avaturn T1 e a importação MetaHuman preparada com uma fixture
+MakeHuman (não é teste de um personagem MetaHuman real), sem câmera nem síntese de fala. Cada processo tem limite de tempo;
+o resultado exige código de saída zero e marcador de aprovação, sem asserts
+falhos. Logs e `results.json` ficam em uma pasta datada dentro de `Validation`.
+O script não comprova renderização gráfica, hardware real ou integrações externas.
 
 Teste com hardware: `Tracker/.venv/Scripts/python.exe Tools/e2e_corporate_camera.py`.
 Requer webcam física no índice 0 e OBS Virtual Camera no índice 1. Abre a webcam

@@ -1,5 +1,11 @@
 # Salsa Avatar Studio
 
+**Lip sync SALSA no Windows:** o modo Agente usa o áudio real do TTS no Unity. Teste em **Voz TTS → Testar voz e lip sync SALSA**. [Integração, calibração e validação](LIPSYNC_SALSA.md).
+
+**Olhos do Avatar:** painel no admin ChatTrade com prévia opcional do dispositivo Windows, YOLOX local, passagens anônimas e logs. Consulte [configuração e validação](AVATAR_EYES.md). Integração real exige implantação do admin/API e vínculo autenticado do dispositivo.
+
+**12 avatares prontos:** abra **Avatares** no topo do aplicativo para escolher entre seis presets masculinos e seis femininos, com roupas e cabelos variados. A escolha pode usar Cartoon 3D ou Corporativo e funciona nos modos Webcam e Agente. Use **Salvar avatar** para guardar a versão no Windows. Na web, abra **Avatares prontos · 12 presets**; a seleção é mantida neste navegador sem login.
+
 **MakeHuman/MPFB no Windows:** `Iniciar Avatar Studio.cmd` agora abre o Corporate
 Avatar Studio com o humano corporativo. A versão anterior continua em
 `Iniciar Avatar Studio Anterior.cmd`. Na interface antiga, abra **Modelo VRM →

@@ -48,3 +48,93 @@ Reprodução e logs locais:
 ## Pendências
 
 Corrigir e retestar o encerramento nativo do Unity neste ambiente; validar frase falada no microfone real, todos os dedos e gestos em ambos os modelos, bandeja, múltiplas pessoas e reuniões. Agenda e agentes de produção continuam dependendo da conexão autenticada ao ChatTrade; não foram simulados compromissos. Reconhecimento de identidade requer um cadastro e validação próprios e não foi implementado. A percepção Android não usa a câmera do computador como se fosse a do celular.
+
+## Contato com rosto e mãos juntas — 15/10/2026
+
+Correções compartilhadas pelos rigs Cartoon e Corporativo no aplicativo Windows:
+
+- Atribuição conjunta das duas mãos: duas detecções próximas deixam de sobrescrever o mesmo lado do pacote.
+- Referência facial baseada nos olhos e na orientação da cabeça do VRM, com proteção aproximada de palma/punho. Pontas de dedos incertas não afastam toda a mão da bochecha.
+- Limite de rotação do punho e de articulações dos dedos; retenção breve da última pose durante oclusão perto do rosto ou de outra mão.
+- Resolução de proximidade pelas palmas do modelo, com margem baseada na espessura aproximada da mão, mantendo comprimentos dos ossos.
+- Indício de mãos unidas calculado na imagem, independente da profundidade monocular dos punhos. Esse indício fecha o vão entre palmas quando elas estão unidas na webcam; tem retenção de 250 ms e exige detecção das duas mãos.
+- Ocultação do acessório `robo_arm` do Seed-san, que não pertence aos dois braços do rig humanoide. Ele também deixa de participar do enquadramento do modelo.
+
+### Webcam real assistida
+
+Webcam 0, dois modelos, 40 segundos por modelo na rodada final. Somente estatísticas agregadas foram registradas; não foi salvo vídeo nem fotografia da webcam.
+
+| Modelo | Pacotes amostrados | Ambas as mãos | Punho perto do rosto | Punhos próximos | Malha inválida |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Cartoon | 786 | 415 | 576 | 78 | 0 |
+| Corporativo | 770 | 313 | 589 | 24 | 0 |
+
+O usuário confirmou na conferência assistida final que as palmas passaram a ficar juntas. Os contadores indicam cobertura dos gestos e finitude da geometria; não certificam ausência de qualquer interpenetração, exatidão milimétrica do contato facial ou reconhecimento de todos os dedos sob oclusão. O contato usa aproximações geométricas, não colisão exata entre todos os triângulos da pele.
+
+Evidências locais: `Validation/windows-prayer-live.log` e `Validation/windows-prayer-contact.log`. O teste sintético verifica separação das palmas, fechamento do vão causado por profundidade incorreta, alcance do IK e geometria finita, com espelhamento ligado/desligado nos dois modelos.
+
+O encerramento gráfico ainda falhou depois dos asserts funcionais: código final `0xc000041d`, com eventos Windows também registrando `0xc0000005` em `UnityPlayer.dll`. Portanto `CORPORATE_CONTACT_LIVE_RESULT=True` não equivale a aprovação integral do processo gráfico. Não houve publicação nesta rodada. O novo indício de contato foi integrado ao rastreador Windows; não declarar E2E Android/web a partir desta validação.
+
+### Regressão e Agente na compilação final
+
+Todos os testes abaixo terminaram com código 0:
+
+- `--contacts-only`: contato de palmas/face, margem, fechamento do vão por indício da imagem e exclusão do acessório robótico do Seed-san. Log `Validation/windows-prayer-contact.log`.
+- `--agent-isolation`: Cartoon e Corporativo, rejeição da webcam no Agente, expressões, gesto por comando, sinal de fala, idle com piscada/bocejo, interrupção do bocejo pela fala e retorno à Webcam. Log `Validation/windows-release-agent-isolation.log`.
+- `--partner-only`: pergunta real ao modelo local, conclusão do processo de resposta e comparação integral do texto exibido com o resultado nos dois modelos. A captura visual é dispensada apenas quando o teste roda explicitamente sem dispositivo gráfico. Log `Validation/windows-release-partner-only.log`.
+- `--rig-parity`: **459 verificações aprovadas**, matriz Cartoon/Corporativo × Webcam/Agente, incluindo dedos, alcance, espelhamento, expressões e vínculos dos ossos. Log `Validation/windows-release-rig-parity.log`.
+- 19 testes Python de atribuição/contato das mãos e preferências/política de voz.
+- Amostra pública de TTS Windows pela voz selecionada, Microsoft Maria Desktop, concluída sem erro. Isso verifica o processo de síntese, não reconhecimento de uma frase humana pelo microfone.
+
+Esses resultados aprovam os fluxos funcionais exercitados. A falha gráfica ao encerrar, o reconhecimento real de comando falado e as integrações autenticadas de produção continuam fora dessa aprovação.
+
+## Regressão autônoma do pacote exportado — 15/10/2026
+
+Executado `publish/Windows/AvatarStudio.exe` sem interface gráfica, sequencialmente, com limite de 180 segundos por processo. Todos os cinco processos terminaram com código 0 e marcador de aprovação, sem `CORPORATE_FAIL`:
+
+| Caso | Verificações aprovadas | Evidência local |
+| --- | ---: | --- |
+| 12 presets, bases masculina/feminina, estilo e serialização | 88 | `Validation/overnight-presets-only.log` |
+| Rig feminino em Webcam e Agente | 229 | `Validation/overnight-female-rig.log` |
+| Paridade Cartoon/Corporativo × Webcam/Agente | 459 | `Validation/overnight-rig-parity.log` |
+| Contato de mãos/rosto | — | `Validation/overnight-contacts-only.log` |
+| Isolamento do Agente, gestos, fala sinalizada e idle | — | `Validation/overnight-agent-isolation.log` |
+
+Também passaram 84 testes Python do Tracker, dois testes de catálogo/modelos, os testes JavaScript de presets e TTS, a verificação de sintaxe dos 15 módulos JavaScript e dos arquivos Python do projeto. A checagem Python exclui o ambiente virtual: um arquivo legado Python 2 de uma dependência (`olefile2.py`) não deve ser tratado como código do aplicativo. O Ollama `qwen3.5:4b` respondeu a uma saudação pública local em 4,74 segundos, sem reprodução de áudio (`Validation/overnight-ollama.json`). Isso valida o serviço local, não a integração completa do Agente com o ChatTrade.
+
+Assembly do pacote testado, SHA-256: `DE048444D70A4593E217600706B23E1910079A17F7F2D54D8D73D096F038BAA6`.
+
+Repetição: `powershell -File Tools/test-windows-release.ps1`. O novo executor guarda logs e resultado estruturado, aplica timeout e exige saída zero além dos asserts. Sua sintaxe PowerShell foi validada; esta rodada utilizou os mesmos cinco casos em execução sequencial direta.
+
+Não foram solicitados gestos humanos nem capturados webcam/microfone nesta rodada. Não houve publicação no domínio, push Git ou E2E Android. A falha conhecida de encerramento gráfico do Unity e as integrações autenticadas continuam pendentes; o encerramento sem dispositivo gráfico passou e não comprova a correção do encerramento com renderização.
+
+## Corporativo 3 · Avaturn — 15/10/2026
+
+Implementados seletor com os nomes dos frameworks, painel Avaturn, demonstração oficial T1, importação GLB/VRM Windows e download GLB HTTPS Windows/Android. A web incorpora o SDK oficial 1.1.0, recebe exportação, adapta GLB ao rig VRM e permite baixar o VRM. Corporativo 2 indica o pacote Real-Time Full Body Tracking ausente; não foi simulada instalação.
+
+Validação final do runtime Windows: **224 verificações aprovadas**, zero `CORPORATE_FAIL`, processo com saída 0 e `CORPORATE_AVATURN_RESULT=True`. Evidência: `Validation/windows-avaturn-capabilities.log`. A referência Avaturn real foi carregada pelo UniVRM e exercitada em Webcam/Agente, com ambos os espelhamentos, braços, dedos, cabeça, tronco e pernas. Quatro avisos `CORPORATE_CAPABILITY` registram que os testes de expressão não se aplicam ao modelo T1 sem blendshapes. Pesos de controles internos sem vínculos à malha não são contados como animação facial real. O teste anterior de 232 asserts foi substituído por essa detecção correta de capacidade.
+
+A conferência gráfica Windows comprovou seletor, carregamento do avatar Avaturn real, painel alinhado ao layout responsivo, correção do brilho metálico de pele/tecido e aviso **Rosto estático · use Avaturn T2 para expressões**. Evidência para entrega: `Validation/avaturn-windows.png`. A correção de material ocorre em runtime; o GLB original permanece idêntico ao modelo de referência.
+
+O pacote Windows exportado contém o mesmo assembly testado, SHA-256 `FAD4217CCBEBD19B9132564ED685240D619A5A54901BCDF8CD74577410981D01`. O APK final foi compilado e seu `AvaturnBase.glb` tem hash idêntico ao original; não foi realizado E2E Android assistido. Os 12 presets também passaram na regressão desta integração (`Validation/windows-final-presets-only.log`), antes dos ajustes finais exclusivos de painel/material/detecção Avaturn.
+
+Web: testes de conversão, preservação de dados, validação de URL/rig/arquivo; referência real pelo GLTFLoader/three-vrm com **42 verificações de corpo**; 19 testes Python da ponte; regressões de presets, MakeHuman e TTS aprovadas. O servidor entregou interface, CSP do criador e GLB de 3.735.784 bytes com HTTP 200. Os testes Node substituem decodificação de texturas e não validam pixels. A ferramenta de navegador bloqueou a aquisição da aba de erro por política de URL; não foi contornada. A validação visual web, geração/exportação online com conta Avaturn e um avatar T2 real permanecem pendentes. Nenhuma foto pessoal foi enviada e não houve publicação no domínio ou push Git nesta rodada.
+
+## Corporativo 4 · MetaHuman preparado — 15/10/2026
+
+Adicionados opção/painel MetaHuman no Windows, Android e web, importação de VRM preparado, download HTTPS Windows/Android, validação de corpo/dedos antes da troca e restauração da categoria ao recarregar o arquivo salvo. Nenhum personagem MetaHuman real está incluído; não foi encontrado um export nas pastas locais verificadas. O runtime não executa DNA/RigLogic/FBX bruto.
+
+O teste de compatibilidade `--metahuman-file` usa o VRM MakeHuman já existente **somente como fixture**. Foram aprovadas **234 verificações**, sem falhas, saída 0 e `CORPORATE_METAHUMAN_PREPARED_RESULT=True` em `Validation/windows-option4-metahuman.log`. A rodada cobre painel sem troca prematura do avatar, importação, contexto 4, rig Webcam/Agente, persistência da origem e retorno ao MakeHuman. Não comprova renderização, cabelo, corretivos nem expressões de um MetaHuman final. O teste web preserva explicitamente o nome original `Corporate Human`; a categoria declarada pelo usuário não é certificação da procedência do asset.
+
+Regressões: 12 presets aprovados (`Validation/windows-option4-presets-only.log`) e Avaturn aprovado (`Validation/windows-option4-avaturn.log`), ambos com saída 0. `node Tools/test-metahuman.mjs` validou rig completo, recusa de ossos ausentes/ambíguos, VRM não preparado, dependências externas, preservação dos dados originais e detecção de rosto estático. Também passaram testes Avaturn, presets e TTS web e os 19 testes Python da ponte. A interface e o adaptador MetaHuman foram entregues pelo HTTP local com sucesso; não houve E2E visual de navegador nesta rodada.
+
+A interface Windows foi conferida visualmente: o seletor exibe **Corporativo 4 · MetaHuman** e o painel informa que o personagem não está incluído, com importação, link HTTPS e guia oficial. Abrir o painel mantém o avatar anterior e sua identificação. Evidência: `Validation/metahuman-option.png`. O assembly exportado corresponde ao build testado, SHA-256 `C37F408347723EC5E4C33E412F5081F7A3851A41CD674F74C8FEDA9C516FCC72`.
+
+APK recompilado; o metadata IL2CPP contém a integração MetaHuman. Não houve E2E Android assistido, teste de webcam real com MetaHuman, publicação no domínio ou push Git. Para validar o personagem final, ainda é necessário um MetaHuman preparado para este runtime, com Humanoid completo e blendshapes ARKit vinculados. As limitações de encerramento gráfico registradas anteriormente continuam fora desta aprovação.
+
+
+## SALSA real — 15/10/2026
+
+Player Windows recompilado e pacote atualizado com SALSA LipSync Suite 2.5.6.150, restaurado do cache licenciado local. Teste dedicado de lip sync aprovado com 16 verificações, nos modelos reais Seed-san (Cartoon) e MakeHuman (Corporativo). Verificou áudio real sintetizado no Windows, reprodução por AudioSource no Unity, controles SALSA/QueueProcessor, boca quieta sem áudio, movimento durante fala, malha finita, fechamento e cancelamento. Também validou o percurso real do botão de prévia TTS até o SALSA e confirmação de término. Processo terminou com exit 0.
+
+97 testes Python aprovados. Evidências em `Validation/lipsync/salsa-e2e-final.log` e `Validation/lipsync/result.json`. Não houve teste de webcam/microfone real, Android ou web nesta alteração. Detalhes em `LIPSYNC_SALSA.md`.
