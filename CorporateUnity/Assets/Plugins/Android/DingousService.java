@@ -68,8 +68,18 @@ public class DingousService extends Service {
   else if(System.currentTimeMillis()<activateUntil){activateUntil=0;ask(text);}
  }
  public boolean inCall(){AudioManager a=(AudioManager)getSystemService(AUDIO_SERVICE);int mode=a.getMode();callDetected=mode==AudioManager.MODE_IN_CALL||mode==AudioManager.MODE_IN_COMMUNICATION;return callDetected;}
- public void observedFaces(int count){faces=count;faceTime=System.currentTimeMillis();if(count>1&&tts!=null)tts.stop();publish();}
- public void ask(String text){if(text==null||text.trim().isEmpty()||text.length()>2000||!busy.compareAndSet(false,true))return;question=text;setStatus("IA local pensando · microfone pausado");jobs.execute(()->{
+ public void observedFaces(int count){faces=count;faceTime=System.currentTimeMillis();if(count>1&&tts!=null)tts.stop();
+  if(listen&&count==1&&ttsReady&&!inCall()&&!busy.get()){
+   String day=new java.text.SimpleDateFormat("yyyy-MM-dd",Locale.ROOT).format(new Date());
+   if(!day.equals(getSharedPreferences("dingous",0).getString("greeting-day",""))){
+    getSharedPreferences("dingous",0).edit().putString("greeting-day",day).apply();
+    int hour=Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+    String hello=hour<12?"Bom dia":hour<18?"Boa tarde":"Boa noite";
+    new Handler(Looper.getMainLooper()).post(()->{if(listen&&faces==1&&!inCall())tts.speak(hello+". Estou por aqui. Diga Dingous quando precisar de mim.",TextToSpeech.QUEUE_ADD,null,"dingous-greeting");});
+   }
+  }
+  publish();}
+ public boolean ask(String text){if(text==null||text.trim().isEmpty()||text.length()>2000||!busy.compareAndSet(false,true))return false;question=text;setStatus("IA local pensando · microfone pausado");jobs.execute(()->{
   HttpURLConnection connection=null;
   try{android.content.SharedPreferences prefs=getSharedPreferences("dingous",0);String url=prefs.getString("url",""),token=prefs.getString("token","");if(url.isEmpty()||token.isEmpty())throw new IOException("Pareie a ponte de IA local primeiro");
    connection=(HttpURLConnection)new URL(url+"/ask").openConnection();connection.setConnectTimeout(10000);connection.setReadTimeout(120000);connection.setRequestMethod("POST");connection.setDoOutput(true);connection.setRequestProperty("Content-Type","application/json");connection.setRequestProperty("Authorization","Bearer "+token);
@@ -79,7 +89,7 @@ public class DingousService extends Service {
    if(reply.optBoolean("speechAllowed",false)&&environment&&ttsReady)tts.speak(answer,TextToSpeech.QUEUE_FLUSH,null,"dingous-answer");
    setStatus(reply.optBoolean("speechAllowed",false)&&environment?"Resposta recebida":"Privacidade ativa · resposta somente em texto");
   }catch(Exception e){setStatus("IA: "+e.getMessage());}finally{if(connection!=null)connection.disconnect();busy.set(false);publish();}
- });}
+ });return true;}
  public void previewVoice(){if(!ttsReady){setStatus("Voz pt-BR local ainda indisponível");return;}if(inCall()||faces>1){setStatus("Voz bloqueada: ligação ou múltiplas pessoas");return;}tts.speak("Olá, eu sou o Dingous. Este é um teste de voz local, sem informações pessoais.",TextToSpeech.QUEUE_FLUSH,null,"dingous-preview");}
  public void setStatus(String value){status=value;android.util.Log.i("Dingous","STATE "+value);publish();}
  private void publish(){if(instance!=this)return;try{getSharedPreferences("dingous",0).edit().putString("state",new JSONObject().put("status",status).put("question",question).put("answer",answer).put("listening",listen).put("asrReady",asrReady).put("voiceReady",ttsReady).put("speaking",tts!=null&&tts.isSpeaking()).put("audioChunks",audioChunks.get()).put("faces",faces).put("inCall",callDetected).put("trackingFrames",camera==null?0:camera.frames).toString()).apply();}catch(Exception ignored){}}

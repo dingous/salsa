@@ -10,7 +10,7 @@ public final class DingousNative {
  }
  public static void stop(Activity a){a.stopService(new Intent(a,DingousService.class));}
  public static String state(Activity a){return a.getSharedPreferences("dingous",0).getString("state","{}");}
- public static void ask(Activity a,String question){if(DingousService.instance!=null)DingousService.instance.ask(question);}
+ public static boolean ask(Activity a,String question){DingousService service=DingousService.instance;return service!=null&&service.ask(question);}
  public static void preview(Activity a){if(DingousService.instance!=null)DingousService.instance.previewVoice();}
  public static void pair(Activity a){a.runOnUiThread(()->{
   LinearLayout layout=new LinearLayout(a);layout.setOrientation(1);

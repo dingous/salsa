@@ -7,7 +7,7 @@ namespace WebcamAvatar
         public StudioUI studio;public AvatarTracking tracking;
         public bool Listening {get;private set;} public bool Tracking {get;private set;}
         [Serializable] class NativeState {public string status,question,answer;public bool voiceReady,asrReady,speaking,inCall;public int faces;public long audioChunks,trackingFrames;}
-        NativeState state=new NativeState();float nextPoll;bool permissionPending;
+        NativeState state=new NativeState();float nextPoll,pendingUntil;bool permissionPending;string pendingQuestion;
         AndroidJavaObject Activity {get {using(var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer"))return player.GetStatic<AndroidJavaObject>("currentActivity");}}
         void Call(string method,params object[] args){using(var bridge=new AndroidJavaClass("br.com.dingous.avatar.DingousNative"))bridge.CallStatic(method,args);}
         void Start(){if(Debug.isDebugBuild){using(var activity=Activity)using(var intent=activity.Call<AndroidJavaObject>("getIntent")){string token=intent.Call<string>("getStringExtra","dingous_pair_token"),url=intent.Call<string>("getStringExtra","dingous_pair_url");if(!string.IsNullOrEmpty(token)&&!string.IsNullOrEmpty(url))Call("configure",activity,url,token);}}}
@@ -22,9 +22,27 @@ namespace WebcamAvatar
         }
         public void SetListening(bool enabled){Listening=enabled;if(enabled)Tracking=true;Apply();}
         public void SetTracking(bool enabled){Tracking=enabled;Apply();if(!enabled)tracking.ClearSource();}
-        public void Ask(string question){if(!Listening&&!Tracking){Tracking=true;Apply();}using(var activity=Activity)Call("ask",activity,question);}
-        void Update(){if(Application.platform!=RuntimePlatform.Android||Time.unscaledTime<nextPoll)return;nextPoll=Time.unscaledTime+.5f;using(var activity=Activity)using(var bridge=new AndroidJavaClass("br.com.dingous.avatar.DingousNative")){string json=bridge.CallStatic<string>("state",activity);if(json=="{}")return;state=JsonUtility.FromJson<NativeState>(json);tracking.NativeSpeaking=state.speaking;studio.NativeReply(state.question,state.answer,state.status);}}
+        public void Ask(string question){
+            if(string.IsNullOrWhiteSpace(question))return;
+            if(!string.IsNullOrEmpty(pendingQuestion)){studio.SetStatus("Aguarde o envio da pergunta pendente.",true);return;}
+            pendingQuestion=question;pendingUntil=Time.unscaledTime+150;
+            if(!Listening&&!Tracking){Tracking=true;Apply();}
+            studio.SetStatus("Preparando o envio para a IA local…");
+        }
+        void Update(){
+            if(Application.platform!=RuntimePlatform.Android||Time.unscaledTime<nextPoll)return;nextPoll=Time.unscaledTime+.5f;
+            using(var activity=Activity)using(var bridge=new AndroidJavaClass("br.com.dingous.avatar.DingousNative")){
+                if(!string.IsNullOrEmpty(pendingQuestion)&&!permissionPending){
+                    if(Time.unscaledTime>pendingUntil||(!Listening&&!Tracking)){pendingQuestion=null;studio.SetStatus("Pergunta não enviada. Confira as permissões e tente novamente.",true);}
+                    else if(bridge.CallStatic<bool>("ask",activity,pendingQuestion))pendingQuestion=null;
+                }
+                string json=bridge.CallStatic<string>("state",activity);if(json=="{}")return;
+                state=JsonUtility.FromJson<NativeState>(json);tracking.NativeSpeaking=state.speaking;
+                studio.NativeReply(pendingQuestion??state.question,state.answer,state.status);
+            }
+        }
         void OnGUI(){if(Application.platform!=RuntimePlatform.Android)return;
+            if(studio.AgentFullScreen)return;
             float scale=Mathf.Clamp(Screen.width/1000f,.8f,1.8f);GUI.matrix=Matrix4x4.Scale(new Vector3(scale,scale,1));float y=Screen.height/scale-88;
             GUI.Box(new Rect(8,y,Screen.width/scale-16,80),"ANDROID · IA no computador / câmera e fala locais · privacidade protegida");
             if(GUI.Button(new Rect(18,y+28,160,36),"Parear IA local"))using(var activity=Activity)Call("pair",activity);

@@ -5,6 +5,7 @@ import numpy as np
 from dingous_partner import answer
 from local_ai import ensure_local_ai
 from partner_settings import load as load_settings,speak as speak_reply
+from companion_events import greeting,daily_query
 WAKE=re.compile(r'\b(?:dingous|dingus|dingos|dingo)\b',re.I)
 def wake_command(text,wake_word='Dingous'):
  normalized=''.join(c for c in unicodedata.normalize('NFD',text.lower()) if not unicodedata.combining(c))
@@ -23,9 +24,30 @@ def listen():
   try:packets.put_nowait(bytes(data))
   except queue.Full:pass
  print('LISTEN|Microfone ativo: diga Dingous e sua pergunta',flush=True)
+ greeting_path=Path(args.output).with_suffix('.greeting.txt');greeting_path.parent.mkdir(parents=True,exist_ok=True);greeting_path.write_text(greeting(),encoding='utf-8')
+ # Only fixed, non-personal greeting text can use the public voice path.
+ try:
+  speak_reply(greeting_path,dict(settings,sharedEnvironmentProtection=False))
+ except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
+ last_briefing=None;next_policy=0
  start=time.monotonic();activeUntil=0;blocks=[];silence=0;speech=False;wasActive=False
  with sd.RawInputStream(samplerate=16000,blocksize=1600,dtype='int16',channels=1,callback=callback) as stream:
   while not args.seconds or time.monotonic()-start<args.seconds:
+   if time.monotonic()>=next_policy and not speech:
+    next_policy=time.monotonic()+30;event=None
+    try:
+     settings=load_settings();event=daily_query(settings,last_briefing)
+    except Exception as error:print('VOICE_ERROR|Não foi possível atualizar a configuração administrativa: '+str(error),flush=True)
+    if event:
+     last_briefing,briefing_question=event;stream.stop()
+     try:
+      result=answer(briefing_question);path=Path(args.output);path.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');print('ANSWER|'+str(path),flush=True)
+      if result.get('speechAllowed',False):
+       speechPath=path.with_suffix('.txt');speechPath.write_text(result['answer'],encoding='utf-8');speak_reply(speechPath,load_settings())
+     except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
+     finally:
+      while not packets.empty():packets.get_nowait()
+      stream.start()
    data=packets.get(timeout=3);audio=np.frombuffer(data,np.int16).astype(np.float32)/32768
    loud=float(np.sqrt(np.mean(audio*audio)))>.012
    if not speech and loud:speech=True;wasActive=time.monotonic()<activeUntil

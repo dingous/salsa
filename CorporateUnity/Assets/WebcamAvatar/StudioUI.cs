@@ -39,6 +39,7 @@ namespace WebcamAvatar
         Texture2D reference;
         string selectedPhoto, draft;
         bool busy, presentation;
+        public bool AgentFullScreen=>partnerMode && presentation;
         LocalJob generator, trackerJob, cameraJob;
         VirtualCameraOutput broadcaster;
         string[] savedFolders=Array.Empty<string>();
@@ -239,13 +240,17 @@ namespace WebcamAvatar
         }
         void SelectRunMode(bool agent){
             if(agent){ShowPartner();return;}
+            if(presentation)SetPresentation(false);
             partnerMode=false;SetVoiceListening(false);StopPartner();StopLaboratory();
             if(androidRuntime!=null)androidRuntime.SetTracking(false);
             avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
             ShowPage(2);RefreshRunMode();SetStatus("Modo Webcam. Inicie o rastreamento e ative a câmera virtual em Transmissão.");
         }
         void ShowPartner(){
-            if(partnerMode && advancedPanel!=null && advancedPanel.name=="Parceiro Dingous")return;
+            if(partnerMode && advancedPanel!=null && advancedPanel.name=="Parceiro Dingous"){
+                if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0)SetPresentation(true);
+                return;
+            }
             StopLaboratory();if(trackerJob!=null)ToggleTracking();tracking.ClearSource();partnerMode=true;
             StopCamera();RefreshRunMode();
             if(advancedPanel!=null)Destroy(advancedPanel);
@@ -260,7 +265,24 @@ namespace WebcamAvatar
             Button("Aprovar para fine-tuning",advancedPanel.transform,24,442,322,32,()=>RunPartner("--approve"));
             Button("Parar áudio",advancedPanel.transform,24,484,154,32,()=>{StopPartner();SetVoiceListening(false);voiceToggle.SetIsOnWithoutNotify(false);});
             Button("Modo Webcam",advancedPanel.transform,190,484,156,32,()=>SelectRunMode(false));responsive.LayoutAdvanced();
-            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);}
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);SetPresentation(true);}
+        }
+        void OnGUI(){
+            if(!AgentFullScreen)return;
+            float scale=Mathf.Clamp(Screen.width/1100f,.8f,1.6f);
+            GUI.matrix=Matrix4x4.Scale(new Vector3(scale,scale,1));
+            float width=Screen.width/scale,height=Screen.height/scale;
+            GUI.Box(new Rect(16,16,width-32,112),"DINGOUS · SEU AGENTE PESSOAL");
+            GUI.Label(new Rect(32,46,width-64,32),status!=null?status.text:"Diga Dingous e seu comando.");
+            bool listening=androidRuntime!=null?androidRuntime.Listening:voiceListener!=null;
+            if(GUI.Button(new Rect(32,82,180,32),listening?"Pausar escuta":"Retomar escuta")){
+                SetVoiceListening(!listening);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(!listening);
+            }
+            if(GUI.Button(new Rect(224,82,180,32),"Configurar / conversar"))SetPresentation(false);
+            if(GUI.Button(new Rect(416,82,150,32),"Modo Webcam"))SelectRunMode(false);
+            string reply=partnerAnswer!=null?partnerAnswer.text:"";
+            if(!string.IsNullOrWhiteSpace(reply))GUI.Box(new Rect(16,height-180,width-32,156),reply);
+            GUI.matrix=Matrix4x4.identity;
         }
         void SetVoiceListening(bool enabled){
             if(androidRuntime!=null){androidRuntime.SetListening(enabled);return;}
