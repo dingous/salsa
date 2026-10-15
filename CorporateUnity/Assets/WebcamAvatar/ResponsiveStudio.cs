@@ -52,7 +52,7 @@ namespace WebcamAvatar
         }
         public void Layout(float width,float height) {
             bool narrow=width<1100;float margin=width<600?16:32;float inner=width-2*margin;
-            float header=narrow?248:216;
+            float header=narrow?344:276;
             float leftScale=Mathf.Min(1,inner/370f);
             float cardWidth=narrow?inner:inner-394;
             float previewY=narrow?header:header;
@@ -73,8 +73,13 @@ namespace WebcamAvatar
                     r.GetComponentInChildren<Text>().fontSize=width<600?12:14;
                 }
                 else if(r.GetComponent<Dropdown>()!=null)Place(r,narrow?width-margin-190:width-margin-220, narrow?20:82,narrow?190:220,40);
-                else if(Mathf.Abs(p.y+128)<1) {Place(r,margin,narrow?154:110,inner,48);r.GetComponent<Text>().fontSize=width<600?26:38;}
-                else if(Mathf.Abs(p.y+192)<1)Place(r,margin,narrow?204:166,inner,42);
+                else if(r.name=="Modo Webcam" || r.name=="Modo Agente") {
+                    float w=narrow?(inner-12)/2:190;
+                    Place(r,margin+(r.name=="Modo Agente"?w+12:0),narrow?154:110,w,42);FitLabel(r);
+                }
+                else if(Mathf.Abs(p.y+98)<1)Place(r,narrow?margin:margin+410,narrow?202:110,narrow?inner:inner-410,42);
+                else if(Mathf.Abs(p.y+128)<1) {Place(r,margin,narrow?250:170,inner,48);r.GetComponent<Text>().fontSize=width<600?26:38;}
+                else if(Mathf.Abs(p.y+192)<1)Place(r,margin,narrow?300:226,inner,42);
                 else Place(r,margin,footerY,inner,64);
             }
             Place(content,0,0,width,Mathf.Max(height,footerY+96));

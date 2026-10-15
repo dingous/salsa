@@ -25,6 +25,8 @@ namespace WebcamAvatar
         Text modelStatus,rigStatus;
         Text status, trackingStatus, previewName, photoCaption, cameraStatus;
         Button generateButton, saveButton, trackButton, virtualButton;
+        Button webcamModeButton, agentModeButton;
+        Text modeDescription;
         InputField nameField;
         RawImage referenceImage, avatarImage;
         GameObject photoPlaceholder;
@@ -189,6 +191,10 @@ namespace WebcamAvatar
             for(int i=0;i<4;i++){int index=i;navigation[i]=Button(new[]{"Criar avatar","Aparência","Transmissão","Modelo VRM"}[i],root.transform,400+i*132,40,124,40,()=>ShowPage(index));}
             styleDropdown=Dropdown(new[]{"Avatar: Cartoon","Avatar: Corporativo"},root.transform,982,40,220,40,SelectAvatarMode);
             styleDropdown.SetValueWithoutNotify(avatar.Profile.style);
+            webcamModeButton=Button("Modo Webcam",root.transform,116,98,190,42,()=>SelectRunMode(false));
+            agentModeButton=Button("Modo Agente",root.transform,318,98,190,42,()=>SelectRunMode(true));
+            modeDescription=Label("Webcam · seu avatar acompanha seus movimentos para chamadas.",root.transform,520,98,740,42,14,muted);
+            RefreshRunMode();
             Label("Crie sua versão digital.",root.transform,116,128,1040,54,38,white,FontStyle.Bold);
             Label("Seu avatar humano. Sua voz. Reuniões com presença e privacidade.",root.transform,118,192,1060,30,17,muted);
             for(int i=0;i<4;i++) pages[i]=Panel("Página "+i,root.transform,116,256,370,558,panel).gameObject;
@@ -224,13 +230,27 @@ namespace WebcamAvatar
             Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
             Button("Laboratório Dingous",parent,24,466,156,30,ShowLaboratory);
             Button("Restaurar cores",parent,190,466,156,30,()=>{Vrm.ResetAppearance();SetStatus("Cores originais restauradas.");});
-            Dropdown(new[]{"Modo: Webcam","Modo: Parceiro Dingous"},parent,24,504,322,34,i=>{if(i==1)ShowPartner();else{partnerMode=false;SetVoiceListening(false);StopPartner();avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);SetStatus("Modo Webcam. Inicie o rastreamento em Transmissão.");}});
+            Label("Escolha Webcam ou Agente no topo do aplicativo.",parent,24,504,322,34,12,muted);
+        }
+        void RefreshRunMode(){
+            webcamModeButton.GetComponent<Image>().color=partnerMode?field:purple;
+            agentModeButton.GetComponent<Image>().color=partnerMode?purple:field;
+            modeDescription.text=partnerMode?"Agente · converse com Dingous e consulte os agentes vinculados no ChatTrade.":"Webcam · seu avatar acompanha seus movimentos para chamadas.";
+        }
+        void SelectRunMode(bool agent){
+            if(agent){ShowPartner();return;}
+            partnerMode=false;SetVoiceListening(false);StopPartner();StopLaboratory();
+            if(androidRuntime!=null)androidRuntime.SetTracking(false);
+            avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
+            ShowPage(2);RefreshRunMode();SetStatus("Modo Webcam. Inicie o rastreamento e ative a câmera virtual em Transmissão.");
         }
         void ShowPartner(){
+            if(partnerMode && advancedPanel!=null && advancedPanel.name=="Parceiro Dingous")return;
             StopLaboratory();if(trackerJob!=null)ToggleTracking();tracking.ClearSource();partnerMode=true;
+            StopCamera();RefreshRunMode();
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Parceiro Dingous",responsive.Content,116,256,370,558,panel).gameObject;
-            Label("PARCEIRO DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
+            Label("MODO AGENTE · DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
             Label("IA local · áudio · memória explícita",advancedPanel.transform,24,68,322,24,13,muted);
             voiceToggle=Toggle("Escutar Dingous · microfone local",advancedPanel.transform,24,98,322,false,SetVoiceListening);
             partnerQuestion=Input("Sua dúvida ou preferência",advancedPanel.transform,24,134,322,66);partnerQuestion.lineType=InputField.LineType.MultiLineNewline;partnerQuestion.characterLimit=2000;
@@ -239,7 +259,7 @@ namespace WebcamAvatar
             Button("Guardar preferência",advancedPanel.transform,24,402,322,32,()=>RunPartner("--remember"));
             Button("Aprovar para fine-tuning",advancedPanel.transform,24,442,322,32,()=>RunPartner("--approve"));
             Button("Parar áudio",advancedPanel.transform,24,484,154,32,()=>{StopPartner();SetVoiceListening(false);voiceToggle.SetIsOnWithoutNotify(false);});
-            Button("Fechar",advancedPanel.transform,190,484,156,32,()=>{StopPartner();SetVoiceListening(false);Destroy(advancedPanel);advancedPanel=null;});responsive.LayoutAdvanced();
+            Button("Modo Webcam",advancedPanel.transform,190,484,156,32,()=>SelectRunMode(false));responsive.LayoutAdvanced();
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);}
         }
         void SetVoiceListening(bool enabled){
@@ -458,7 +478,7 @@ namespace WebcamAvatar
             responsive.LayoutAdvanced();
         }
         public void SetStatus(string message,bool isError=false) {status.text=message;status.color=isError?new Color(1,.58f,.57f):muted;}
-        public void NativeReply(string question,string answer,string message){if(partnerQuestion!=null&&!string.IsNullOrEmpty(question))partnerQuestion.text=question;if(partnerAnswer!=null&&!string.IsNullOrEmpty(answer))partnerAnswer.text=answer;if(!string.IsNullOrEmpty(message))SetStatus(message);}
+        public void NativeReply(string question,string answer,string message){if(partnerQuestion!=null&&!partnerQuestion.isFocused&&!string.IsNullOrEmpty(question))partnerQuestion.text=question;if(partnerAnswer!=null&&!string.IsNullOrEmpty(answer))partnerAnswer.text=answer;if(!string.IsNullOrEmpty(message))SetStatus(message);}
         void ModifyColor(Action<AvatarProfile> change)
         {
             if(busy){SetStatus("Aguarde o carregamento terminar.");return;}
@@ -598,7 +618,7 @@ namespace WebcamAvatar
         void ToggleTracking()
         {
             if(androidRuntime!=null){androidRuntime.SetTracking(!androidRuntime.Tracking);SetButtonLabel(trackButton,androidRuntime.Tracking?"Parar rastreamento":"Iniciar rastreamento");return;}
-            partnerMode=false;SetVoiceListening(false);StopPartner();StopLaboratory();
+            partnerMode=false;RefreshRunMode();SetVoiceListening(false);StopPartner();StopLaboratory();
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
             try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
             catch(Exception e){SetStatus(e.Message,true);}
@@ -719,7 +739,7 @@ namespace WebcamAvatar
             if(presentation){var target=avatarCamera.targetTexture;avatarCamera.targetTexture=output;avatarCamera.Render();avatarCamera.targetTexture=target;}
             int hands=(tracking.GetHand(true)!=null?1:0)+(tracking.GetHand(false)!=null?1:0);
             bool partialHand=(tracking.GetHand(true)!=null && !tracking.HandComplete(true)) || (tracking.GetHand(false)!=null && !tracking.HandComplete(false));
-            trackingStatus.text=partnerMode?"PARCEIRO DINGOUS · IA LOCAL":avatar.freeze?"AVATAR PAUSADO":avatar.previewAnimation?"PRÉVIA ANIMADA":tracking.Connected?$"{(tracking.FaceDetected?"ROSTO":"SEM ROSTO")} • {hands} MÃOS{(partialHand?"*":"")} • {(tracking.FullBodyDetected?"CORPO":"PARCIAL")}":"PRÉVIA • WEBCAM DESLIGADA";
+            trackingStatus.text=partnerMode?"MODO AGENTE · DINGOUS":avatar.freeze?"AVATAR PAUSADO":avatar.previewAnimation?"PRÉVIA ANIMADA":tracking.Connected?$"{(tracking.FaceDetected?"ROSTO":"SEM ROSTO")} • {hands} MÃOS{(partialHand?"*":"")} • {(tracking.FullBodyDetected?"CORPO":"PARCIAL")}":"PRÉVIA • WEBCAM DESLIGADA";
             if(trackerJob!=null && trackerJob.Finished){string message=trackerJob.FriendlyError("O rastreamento foi encerrado.");trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus(message,true);}
             if(cameraJob!=null){
                 while(cameraJob.Output.TryDequeue(out string line))if(line.StartsWith("READY|")){broadcaster.Begin();cameraStatus.text="Selecione OBS Virtual Camera na chamada";SetStatus("Câmera virtual pronta. O vídeo contém apenas o avatar.");}
