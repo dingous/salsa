@@ -42,6 +42,7 @@ namespace WebcamAvatar
         public bool AgentFullScreen=>partnerMode && presentation;
         public bool AgentMode=>partnerMode;
         WindowsAgentPresence presence;
+        Vector2 agentReplyScroll;
         public void PauseAgent(){SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);}
         LocalJob generator, trackerJob, cameraJob;
         VirtualCameraOutput broadcaster;
@@ -279,7 +280,9 @@ namespace WebcamAvatar
             if(!AgentFullScreen)return;
             float scale=Mathf.Clamp(Screen.width/1100f,.8f,1.6f);
             GUI.matrix=Matrix4x4.Scale(new Vector3(scale,scale,1));
-            float width=Screen.width/scale,height=Screen.height/scale;
+            var safe=Screen.safeArea;
+            float width=safe.width/scale,height=safe.height/scale,left=safe.x/scale,top=(Screen.height-safe.yMax)/scale;
+            GUI.BeginGroup(new Rect(left,top,width,height));
             GUI.Box(new Rect(16,16,width-32,112),"DINGOUS · SEU AGENTE PESSOAL");
             GUI.Label(new Rect(32,46,width-64,32),status!=null?status.text:"Diga Dingous e seu comando.");
             bool listening=androidRuntime!=null?androidRuntime.Listening:voiceListener!=null;
@@ -294,7 +297,15 @@ namespace WebcamAvatar
                 if(GUI.Button(new Rect(168,138,140,30),"Segundo plano"))presence.Hide();
             }
             string reply=partnerAnswer!=null?partnerAnswer.text:"";
-            if(!string.IsNullOrWhiteSpace(reply))GUI.Box(new Rect(16,height-180,width-32,156),reply);
+            if(!string.IsNullOrWhiteSpace(reply)){
+                float responseHeight=Mathf.Min(180,height*.3f),responseWidth=width-56;
+                var textStyle=new GUIStyle(GUI.skin.label){wordWrap=true};
+                float textHeight=textStyle.CalcHeight(new GUIContent(reply),responseWidth-24);
+                GUI.Box(new Rect(16,height-responseHeight-16,width-32,responseHeight),GUIContent.none);
+                agentReplyScroll=GUI.BeginScrollView(new Rect(24,height-responseHeight-8,width-48,responseHeight-16),agentReplyScroll,new Rect(0,0,responseWidth,Mathf.Max(responseHeight-16,textHeight)));
+                GUI.Label(new Rect(0,0,responseWidth-24,textHeight),reply,textStyle);GUI.EndScrollView();
+            }
+            GUI.EndGroup();
             GUI.matrix=Matrix4x4.identity;
         }
         void SetVoiceListening(bool enabled){

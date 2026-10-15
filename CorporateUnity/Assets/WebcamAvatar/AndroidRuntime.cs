@@ -8,6 +8,7 @@ namespace WebcamAvatar
         public bool Listening {get;private set;} public bool Tracking {get;private set;}
         [Serializable] class NativeState {public string status,question,answer;public bool voiceReady,asrReady,speaking,inCall;public int faces;public long audioChunks,trackingFrames;}
         NativeState state=new NativeState();float nextPoll,pendingUntil;bool permissionPending;string pendingQuestion;
+        public static float ControlsHeight=>Screen.width<600?184:112;
         AndroidJavaObject Activity {get {using(var player=new AndroidJavaClass("com.unity3d.player.UnityPlayer"))return player.GetStatic<AndroidJavaObject>("currentActivity");}}
         void Call(string method,params object[] args){using(var bridge=new AndroidJavaClass("br.com.dingous.avatar.DingousNative"))bridge.CallStatic(method,args);}
         void Start(){if(Debug.isDebugBuild){using(var activity=Activity)using(var intent=activity.Call<AndroidJavaObject>("getIntent")){string token=intent.Call<string>("getStringExtra","dingous_pair_token"),url=intent.Call<string>("getStringExtra","dingous_pair_url");if(!string.IsNullOrEmpty(token)&&!string.IsNullOrEmpty(url))Call("configure",activity,url,token);}}}
@@ -43,13 +44,16 @@ namespace WebcamAvatar
         }
         void OnGUI(){if(Application.platform!=RuntimePlatform.Android)return;
             if(studio.AgentFullScreen)return;
-            float scale=Mathf.Clamp(Screen.width/1000f,.8f,1.8f);GUI.matrix=Matrix4x4.Scale(new Vector3(scale,scale,1));float y=Screen.height/scale-88;
-            GUI.Box(new Rect(8,y,Screen.width/scale-16,80),"ANDROID · IA no computador / câmera e fala locais · privacidade protegida");
-            if(GUI.Button(new Rect(18,y+28,160,36),"Parear IA local"))using(var activity=Activity)Call("pair",activity);
-            if(GUI.Button(new Rect(188,y+28,160,36),"Testar voz local")){if(!Listening&&!Tracking){Tracking=true;Apply();}using(var activity=Activity)Call("preview",activity);}
-            if(GUI.Button(new Rect(358,y+28,190,36),Listening?"Parar escuta":"Escutar Dingous"))SetListening(!Listening);
-            if(GUI.Button(new Rect(558,y+28,160,36),Tracking?"Parar câmera":"Rastrear câmera"))SetTracking(!Tracking);
-            GUI.Label(new Rect(730,y+28,Screen.width/scale-740,42),$"Frames: {state.trackingFrames} · áudio: {state.audioChunks}\nRostos: {state.faces} · ASR: {state.asrReady} · voz: {state.voiceReady}");GUI.matrix=Matrix4x4.identity;
+            var safe=Screen.safeArea;bool compact=safe.width<600;
+            float height=ControlsHeight,y=Screen.height-safe.y-height,width=safe.width-24,x=safe.x+12;
+            GUI.Box(new Rect(x,y,width,height-8),"ANDROID · SERVIÇOS LOCAIS");
+            int columns=compact?2:4;float gap=8,w=(width-24-gap*(columns-1))/columns;
+            if(GUI.Button(new Rect(x+12,y+28,w,40),"Parear IA"))using(var activity=Activity)Call("pair",activity);
+            if(GUI.Button(new Rect(x+12+w+gap,y+28,w,40),"Testar voz")){if(!Listening&&!Tracking){Tracking=true;Apply();}using(var activity=Activity)Call("preview",activity);}
+            float secondY=compact?y+76:y+28,secondX=compact?x+12:x+12+2*(w+gap);
+            if(GUI.Button(new Rect(secondX,secondY,w,40),Listening?"Parar escuta":"Escutar Dingous"))SetListening(!Listening);
+            if(GUI.Button(new Rect(secondX+w+gap,secondY,w,40),Tracking?"Parar câmera":"Rastrear câmera"))SetTracking(!Tracking);
+            GUI.Label(new Rect(x+12,compact?y+124:y+74,width-24,40),$"Frames: {state.trackingFrames} · áudio: {state.audioChunks} · rostos: {state.faces}\nReconhecimento: {state.asrReady} · voz pt-BR: {state.voiceReady}");
         }
         // Explicit pause/Webcam/notification stop controls own the foreground service.
         // Closing the Unity activity must not stop a user-started background listener.

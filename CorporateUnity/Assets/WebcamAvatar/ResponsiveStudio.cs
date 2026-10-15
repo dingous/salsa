@@ -47,8 +47,10 @@ namespace WebcamAvatar
             if(Screen.width<390)scale=Screen.width/390f;
             canvas.GetComponent<CanvasScaler>().scaleFactor=scale;canvas.scaleFactor=scale;
             var safe=Screen.safeArea;
+            if(Application.platform==RuntimePlatform.Android){float reserved=Mathf.Min(AndroidRuntime.ControlsHeight,Mathf.Max(0,safe.height-120));safe.y+=reserved;safe.height-=reserved;}
             Place(viewport,safe.x/scale,(Screen.height-safe.yMax)/scale,safe.width/scale,safe.height/scale);
             Layout(safe.width/scale,safe.height/scale);
+            Debug.Log($"DINGOUS_LAYOUT {Screen.width}x{Screen.height} safe={Screen.safeArea} viewport={safe}");
         }
         public void Layout(float width,float height) {
             bool narrow=width<1100;float margin=width<600?16:32;float inner=width-2*margin;

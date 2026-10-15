@@ -18,7 +18,11 @@ namespace WebcamAvatar.Editor
             PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64|AndroidArchitecture.X86_64;
             PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel26;
             PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevelAuto;
-            PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;
+            PlayerSettings.defaultInterfaceOrientation=UIOrientation.AutoRotation;
+            PlayerSettings.allowedAutorotateToPortrait=true;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown=true;
+            PlayerSettings.allowedAutorotateToLandscapeLeft=true;
+            PlayerSettings.allowedAutorotateToLandscapeRight=true;
             var playerSettings=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
             playerSettings.FindProperty("useCustomMainGradleTemplate").boolValue=true;
             playerSettings.ApplyModifiedPropertiesWithoutUndo();
