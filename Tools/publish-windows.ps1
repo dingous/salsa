@@ -16,14 +16,18 @@ New-Item -ItemType Directory -Force -Path $avatarData | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $avatarSource 'CorporateAvatarStudio_Data') -Force | Copy-Item -Destination $avatarData -Recurse -Force
 foreach($avatarItem in Get-ChildItem -LiteralPath $avatarSource -Force){
     if($avatarItem.Name -in @('CorporateAvatarStudio.exe','CorporateAvatarStudio_Data')){continue}
+    if($avatarItem.Name -notin @('D3D12','MonoBleedingEdge','UnityCrashHandler64.exe') -and $avatarItem.Extension -ne '.dll'){continue}
     Copy-Item -LiteralPath $avatarItem.FullName -Destination $avatarDestination -Recurse -Force
 }
 if(!$SkipTracker){Copy-Item -LiteralPath (Join-Path $avatarRoot 'Tracker') -Destination $avatarDestination -Recurse -Force}
-foreach($avatarModel in @('CorporateHuman.vrm','Seed-san.vrm')){
+foreach($avatarModel in @('CorporateHuman.vrm','CorporateWoman.vrm','Seed-san.vrm','AvaturnBase.glb')){
     $avatarBundled=Join-Path $avatarData "StreamingAssets/Avatars/$avatarModel"
     if(!(Test-Path -LiteralPath $avatarBundled)){throw "Modelo ausente: $avatarModel"}
     if((Get-FileHash -LiteralPath $avatarBundled).Hash -ne (Get-FileHash -LiteralPath (Join-Path $avatarRoot "CorporateUnity/Assets/StreamingAssets/Avatars/$avatarModel")).Hash){throw "Modelo desatualizado: $avatarModel"}
 }
 $avatarAssembly=Join-Path $avatarData 'Managed/WebcamAvatar.dll'
+$avatarSalsa=Join-Path $avatarData 'Managed/SALSA-LipSync.dll'
+if(!(Test-Path -LiteralPath $avatarSalsa)){throw 'Runtime SALSA ausente no pacote Windows.'}
+if((Get-FileHash -LiteralPath $avatarSalsa).Hash -ne (Get-FileHash -LiteralPath (Join-Path $avatarSource 'CorporateAvatarStudio_Data/Managed/SALSA-LipSync.dll')).Hash){throw 'Runtime SALSA desatualizado no pacote.'}
 if((Get-FileHash -LiteralPath $avatarAssembly).Hash -ne (Get-FileHash -LiteralPath (Join-Path $avatarSource 'CorporateAvatarStudio_Data/Managed/WebcamAvatar.dll')).Hash){throw 'Interface desatualizada no pacote.'}
 Write-Output "Windows atualizado: $OutputPath (Cartoon + Corporativo)"

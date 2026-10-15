@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def convert(source, destination):
+def convert(source, destination, avatar_name='Corporate Human'):
     data = source.read_bytes()
     length = struct.unpack_from('<I', data, 12)[0]
     doc = json.loads(data[20:20 + length])
@@ -45,7 +45,7 @@ def convert(source, destination):
         raise RuntimeError('Required facial/viseme targets missing')
     doc.setdefault('extensions', {})['VRMC_vrm'] = {
         'specVersion': '1.0',
-        'meta': {'name':'Corporate Human', 'version':'1.0', 'authors':['MakeHuman Community', 'Salsa'],
+        'meta': {'name':avatar_name, 'version':'1.0', 'authors':['MakeHuman Community', 'Salsa'],
                  'copyrightInformation':'Derived from MakeHuman CC0 core assets and face units.',
                  'licenseUrl':'https://vrm.dev/licenses/1.0/',
                  'otherLicenseUrl':'https://creativecommons.org/publicdomain/zero/1.0/',
@@ -69,4 +69,7 @@ def convert(source, destination):
 
 
 if __name__ == '__main__':
-    convert(ROOT / 'Downloads/CorporateHuman.glb', ROOT / 'CorporateUnity/Assets/StreamingAssets/Avatars/CorporateHuman.vrm')
+    import argparse
+    parser=argparse.ArgumentParser();parser.add_argument('--female',action='store_true');args=parser.parse_args()
+    model='CorporateWoman' if args.female else 'CorporateHuman'
+    convert(ROOT / f'Downloads/{model}.glb', ROOT / f'CorporateUnity/Assets/StreamingAssets/Avatars/{model}.vrm','Corporate Woman' if args.female else 'Corporate Human')

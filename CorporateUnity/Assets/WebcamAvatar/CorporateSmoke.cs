@@ -24,15 +24,152 @@ namespace WebcamAvatar
         void Log(string message,string stack,LogType type){if(type==LogType.Error || type==LogType.Exception)failed=true;}
         void Check(bool ok,string message){if(!ok){failed=true;Debug.LogError("CORPORATE_FAIL: "+message);}else Debug.Log("CORPORATE_PASS: "+message);}
         static void Call(StudioUI ui,string name,params object[] args)=>ui.GetType().GetMethod(name,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(ui,args);
+        static float LandmarkDistance(Point a,Point b)=>Vector3.Distance(new Vector3(a.x,a.y,a.z),new Vector3(b.x,b.y,b.z));
         IEnumerator Start()
         {
             yield return new WaitForSecondsRealtime(3);
             var ui=FindAnyObjectByType<StudioUI>();
             if(ui==null){Application.Quit(1);yield break;}
+            // Packet replay tests own their source; exercise idle explicitly below.
+            ui.GetComponent<AgentMotion>().IdleEnabled=false;
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--lipsync-only")>=0){
+                var arguments=Environment.GetCommandLineArgs();int index=Array.IndexOf(arguments,"--speech-file");
+                Check(index>=0&&index+1<arguments.Length,"Speech calibration WAV provided");
+                if(index<0||index+1>=arguments.Length){Application.Quit(1);yield break;}
+                var speech=ui.GetComponent<SpeechLipSync>();Check(speech!=null&&speech.Engine!=null,"Actual SALSA runtime instantiated");
+                string directory=Path.Combine(LocalJob.SpeechRoot,"smoke-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(directory);
+                string wave=Path.Combine(directory,"voice.wav");
+                speech.Source.volume=.15f;
+                foreach(int mode in new[]{0,1}){
+                    ui.avatar.Profile.presetId="";
+                    yield return ui.LoadVrmRoutine(mode==0?Path.Combine(Application.streamingAssetsPath,"Avatars","Seed-san.vrm"):VrmAvatarController.DefaultPath);
+                    Call(ui,"ShowPartner");ui.GetComponent<AgentMotion>().IdleEnabled=false;
+                    ui.tracking.NativeSpeaking=true;yield return new WaitForSecondsRealtime(.3f);
+                    Check(ui.tracking.GetExpression("jawOpen")<.02f,"Speaking flag does not invent mouth motion "+mode);
+                    File.Copy(arguments[index+1],wave);speech.PlayFile(wave);float peak=0;int moving=0,samples=0;float timeout=Time.realtimeSinceStartup+30;
+                    while(speech.Playing&&Time.realtimeSinceStartup<timeout){samples++;float speechJaw=ui.tracking.GetExpression("jawOpen");peak=Mathf.Max(peak,speechJaw);if(speechJaw>.05f)moving++;yield return null;}
+                    Check(samples>10&&moving>2&&peak>.1f,"SALSA audio drives actual avatar mouth "+mode+" peak="+peak+" moving="+moving);
+                    Check(StableMesh(ui.Vrm),"Speech deformation remains finite "+mode);
+                    yield return new WaitForSecondsRealtime(.4f);Check(ui.tracking.GetExpression("jawOpen")<.02f,"Mouth closes after audio ends "+mode);
+                    Check(File.ReadAllText(Path.ChangeExtension(wave,".done"))=="ok","Playback acknowledges audio completion "+mode);
+                    File.Copy(arguments[index+1],wave);speech.PlayFile(wave);yield return new WaitForSecondsRealtime(.2f);speech.Stop();yield return new WaitForSecondsRealtime(.3f);
+                    Check(!speech.Playing&&ui.tracking.GetExpression("jawOpen")<.02f&&File.ReadAllText(Path.ChangeExtension(wave,".done"))=="cancelled","Cancellation stops audio and mouth "+mode);
+                }
+                bool audioPacket=false;float bridgePeak=0;
+                using(var job=new LocalJob("tts_preferences.py","--preview")){
+                    float bridgeDeadline=Time.realtimeSinceStartup+45;
+                    while(!job.Finished&&Time.realtimeSinceStartup<bridgeDeadline){
+                        while(job.Output.TryDequeue(out string lipPacket))if(lipPacket.StartsWith("SPEECH_AUDIO|")){audioPacket=true;speech.PlayFile(lipPacket.Substring(13));}
+                        bridgePeak=Mathf.Max(bridgePeak,ui.tracking.GetExpression("jawOpen"));yield return null;
+                    }
+                    Check(job.Finished&&job.ExitCode==0&&audioPacket&&bridgePeak>.1f,"Real Windows TTS to Unity/SALSA playback and completion handshake");
+                }
+                File.Delete(wave);File.Delete(Path.ChangeExtension(wave,".done"));Directory.Delete(directory);
+                Debug.Log("CORPORATE_LIPSYNC_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            var argv=Environment.GetCommandLineArgs();int avaturnArgument=Array.IndexOf(argv,"--avaturn-file");
+            int metaHumanArgument=Array.IndexOf(argv,"--metahuman-file");
+            if(metaHumanArgument>=0&&metaHumanArgument+1<argv.Length){
+                string oldSource=ui.Vrm.SourcePath;Call(ui,"ShowFramework",4);yield return null;
+                Check(ui.Vrm.SourcePath==oldSource,"MetaHuman panel does not relabel or replace the active avatar before import");
+                yield return ui.ImportMetaHumanFile(argv[metaHumanArgument+1]);
+                Check(ui.Vrm.IsMetaHuman,"Prepared VRM imported into MetaHuman context (fixture is not proof of asset provenance)");
+                Check((int)ui.GetType().GetProperty("CurrentAvatarMode",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui)==4,"Prepared MetaHuman option 4 active");
+                string stored=ui.avatar.Profile.vrmSource;
+                yield return VerifyRig(ui,"Prepared MetaHuman compatibility fixture Webcam",false);Call(ui,"ShowPartner");yield return VerifyRig(ui,"Prepared MetaHuman compatibility fixture Agent",false);
+                yield return ui.LoadVrmRoutine(stored);Check(ui.Vrm.IsMetaHuman,"Prepared MetaHuman context survives profile source reload");
+                Call(ui,"SelectAvatarMode",1);while(ui.Vrm.Loading)yield return null;Check(!ui.Vrm.IsMetaHuman,"Switching back to MakeHuman clears option 4 context");
+                Debug.Log("CORPORATE_METAHUMAN_PREPARED_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(avaturnArgument>=0&&avaturnArgument+1<argv.Length){
+                yield return ui.ImportAvaturnFile(argv[avaturnArgument+1]);
+                Check(ui.Vrm.IsAvaturn,"Avaturn GLB loaded through actual UniVRM humanoid runtime");
+                Check((int)ui.GetType().GetProperty("CurrentAvatarMode",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui)==3,"Avaturn identified as Corporativo 3");
+                Check(StableMesh(ui.Vrm),"Avaturn original skinned mesh finite");
+                yield return VerifyRig(ui,"Avaturn Webcam",false);Call(ui,"ShowPartner");yield return VerifyRig(ui,"Avaturn Agent",false);
+                Debug.Log("CORPORATE_AVATURN_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--presets-only")>=0){
+                var presets=AvatarPresetCatalog.Load();int male=0,female=0;var ids=new HashSet<string>();
+                foreach(var preset in presets){
+                    Check(ids.Add(preset.id),"Preset unique id "+preset.id);if(preset.category=="feminino")female++;else male++;
+                    yield return ui.ApplyPreset(preset.id);
+                    Check(ui.Vrm.Active&&ui.Vrm.ModelName==(preset.category=="feminino"?"Corporate Woman":"Corporate Human"),"Preset actual base model "+preset.id);
+                    Check(ui.avatar.Profile.presetId==preset.id&&ui.avatar.Profile.name==preset.name&&ui.avatar.Profile.clothingStyle==preset.clothingStyle,"Preset appearance applied "+preset.id);
+                    Check(ui.Vrm.ExpressionCount>=52&&StableMesh(ui.Vrm),"Preset expressions and finite mesh "+preset.id);
+                    string source=ui.Vrm.SourcePath;
+                    foreach(int mode in new[]{0,1}){Call(ui,"SelectAvatarMode",mode);Check(ui.avatar.Profile.style==mode&&ui.Vrm.SourcePath==source&&ui.avatar.Profile.presetId==preset.id,"Preset retained switching visual style "+preset.id+" "+mode);}
+                    var roundTrip=JsonUtility.FromJson<AvatarProfile>(JsonUtility.ToJson(ui.avatar.Profile));Check(roundTrip.presetId==preset.id,"Preset profile serialization "+preset.id);
+                }
+                Check(male==6&&female==6,"Six masculine and six feminine presets");
+                Call(ui,"ShowPresets");yield return null;
+                var gallery=(GameObject)ui.GetType().GetField("presetPanel",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+                Check(gallery!=null&&gallery.GetComponentsInChildren<Button>(true).Length>=16,"Preset gallery has twelve choices and filters");
+                ui.GetType().GetField("presetFilter",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(ui,"feminino");Call(ui,"RefreshPresets");yield return null;
+                Check(gallery.GetComponentsInChildren<Button>(true).Length==10,"Preset gallery feminine filter has six choices");
+                Debug.Log("CORPORATE_PRESETS_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--female-rig")>=0){
+                yield return ui.ApplyPreset("beatriz");yield return VerifyRig(ui,"Female presets Webcam");
+                Call(ui,"ShowPartner");yield return VerifyRig(ui,"Female presets Agent");
+                Debug.Log("CORPORATE_FEMALE_RIG_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--startup-only")>=0){yield return new WaitForSecondsRealtime(1);Debug.Log("CORPORATE_STARTUP_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;}
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--contacts-only")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    Call(ui,"SelectRunMode",false);var rig=ui.Vrm.Instance.Runtime.ControlRig;
+                    if(mode==0)Check(!Enabled(ui.Vrm,"robo_arm"),"Seed mechanical accessory excluded from human webcam rig");
+                    using(var udp=new UdpClient())foreach(bool mirror in new[]{false,true}){
+                        ui.tracking.mirror=mirror;
+                        var p=new Point[33];for(int i=0;i<33;i++)p[i]=P(0,0);
+                        p[0]=P(0,-.8f);p[11]=P(.2f,-.5f);p[12]=P(-.2f,-.5f);p[13]=P(.25f,-.25f,-.1f);p[14]=P(-.25f,-.25f,-.1f);
+                        p[15]=P(.001f,-.6f,-.25f);p[16]=P(-.001f,-.6f,-.25f);
+                        var contactPacket=new TrackingFrame{pose=true,points=p};yield return Send(udp,contactPacket,ui.tracking.port,1.5f);
+                        Check(Vector3.Distance(rig.GetBoneTransform(HumanBodyBones.LeftHand).position,rig.GetBoneTransform(HumanBodyBones.RightHand).position)>.045f,"Near-contact wrist separation "+mode+" mirror "+mirror);
+                        Check(Vector3.Distance(ui.Vrm.PalmCenter(true),ui.Vrm.PalmCenter(false))>.02f,"Near-contact palm separation "+mode+" mirror "+mirror);
+                        var contactHand=new Point[21];contactHand[0]=P(0,0);
+                        for(int f=0;f<5;f++)for(int j=0;j<4;j++)contactHand[1+f*4+j]=P((f-2)*.018f,-.03f-j*.018f);
+                        contactPacket.leftHand=contactHand;contactPacket.rightHand=contactHand;contactPacket.handsTogether=true;
+                        p[15]=P(.08f,-.6f,-.25f);p[16]=P(-.08f,-.6f,-.25f);
+                        yield return Send(udp,contactPacket,ui.tracking.port,1.5f);
+                        Check(Vector3.Distance(ui.Vrm.PalmCenter(true),ui.Vrm.PalmCenter(false))<.07f,"Image contact closes monocular-depth palm gap "+mode+" mirror "+mirror);
+                        contactPacket.leftHand=null;contactPacket.rightHand=null;contactPacket.handsTogether=false;
+                        p[15]=P(.04f,-.78f);p[16]=P(-.3f,-.25f);yield return Send(udp,contactPacket,ui.tracking.port,1.5f);
+                        Check(StableMesh(ui.Vrm),"Face contact finite skinned mesh "+mode+" mirror "+mirror);
+                        for(int side=0;side<2;side++)Check(Vector3.Distance(rig.GetBoneTransform(side==0?HumanBodyBones.LeftHand:HumanBodyBones.RightHand).position,ui.Vrm.WristTargets[side])<.05f,"Contact IK reaches protected target "+mode+" side "+side+" mirror "+mirror);
+                    }
+                }
+                Debug.Log("CORPORATE_CONTACT_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--contacts-live")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectRunMode",false);Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    Call(ui,"ToggleTracking");float readyDeadline=Time.realtimeSinceStartup+45;
+                    while(!ui.tracking.Connected&&Time.realtimeSinceStartup<readyDeadline)yield return null;
+                    Check(ui.tracking.Connected,"Contact live webcam ready model "+mode);
+                    ui.SetStatus((mode==0?"CARTOON":"CORPORATIVO")+" · TESTE 40s: coce o rosto, junte as mãos em oração e abra os dedos.");
+                    Debug.Log("CONTACT_LIVE_READY_MODEL="+mode);
+                    int bothHands=0,samples=0,invalid=0,nearFace=0,nearHands=0;long sequence=-1;float deadline=Time.realtimeSinceStartup+40;
+                    while(Time.realtimeSinceStartup<deadline){
+                        if(ui.tracking.FrameSequence!=sequence&&ui.tracking.Connected){
+                            sequence=ui.tracking.FrameSequence;samples++;if(ui.tracking.GetHand(true)!=null&&ui.tracking.GetHand(false)!=null)bothHands++;if(!StableMesh(ui.Vrm))invalid++;
+                            var observed=ui.tracking.PosePoints;
+                            if(observed!=null&&observed.Length==33){
+                                if(observed[0].confidence>.55f&&((observed[15].confidence>.55f&&LandmarkDistance(observed[0],observed[15])<.32f)||(observed[16].confidence>.55f&&LandmarkDistance(observed[0],observed[16])<.32f)))nearFace++;
+                                if(observed[15].confidence>.55f&&observed[16].confidence>.55f&&LandmarkDistance(observed[15],observed[16])<.15f)nearHands++;
+                            }
+                        }
+                        yield return null;
+                    }
+                    Debug.Log($"CONTACT_LIVE_COUNTS model={mode} samples={samples} bothHands={bothHands} nearFace={nearFace} nearHands={nearHands} invalidMesh={invalid}");
+                    Check(samples>30&&bothHands>3&&nearFace>3&&nearHands>3&&invalid==0,"Real contact capture covers face and paired hands with finite mesh model "+mode);Call(ui,"ToggleTracking");
+                }
+                Debug.Log("CORPORATE_CONTACT_LIVE_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--agent-isolation")>=0){
                 foreach(int mode in new[]{0,1}){
                     Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
@@ -47,12 +184,23 @@ namespace WebcamAvatar
                         Check(ui.tracking.Connected&&ui.tracking.GetExpression("eyeBlinkRight")>.5f,"Agent expression reaches rig model "+mode);
                     }
                     ui.tracking.NativeSpeaking=true;yield return new WaitForSecondsRealtime(.3f);
-                    Check(ui.tracking.GetExpression("jawOpen")>.1f,"Agent speech drives jaw independently of webcam model "+mode);ui.tracking.NativeSpeaking=false;
+                    Check(ui.tracking.GetExpression("jawOpen")<.02f,"Speaking flag without audio keeps jaw closed model "+mode);ui.tracking.NativeSpeaking=false;
                     var hand=ui.Vrm.Instance.Runtime.ControlRig.GetBoneTransform(HumanBodyBones.RightHand);
                     var beforeGesture=hand.position;
                     ui.GetComponent<AgentMotion>().Respond("Acene para mim","Olá.");
                     yield return new WaitForSecondsRealtime(1.4f);
                     Check(Vector3.Distance(beforeGesture,hand.position)>.06f,"Command-controlled Agent gesture moves rig model "+mode);
+                    yield return new WaitForSecondsRealtime(1.8f);
+                    var motion=ui.GetComponent<AgentMotion>();motion.IdleEnabled=true;
+                    yield return null;
+                    typeof(AgentMotion).GetField("nextYawn",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(motion,Time.unscaledTime);
+                    typeof(AgentMotion).GetField("nextBlink",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(motion,Time.unscaledTime);
+                    float idleUntil=Time.unscaledTime+2.7f,blinkPeak=0,jawPeak=0;
+                    while(Time.unscaledTime<idleUntil){blinkPeak=Mathf.Max(blinkPeak,ui.tracking.GetExpression("eyeBlinkLeft"));jawPeak=Mathf.Max(jawPeak,ui.tracking.GetExpression("jawOpen"));yield return null;}
+                    Check(blinkPeak>.3f&&jawPeak>.3f&&ui.tracking.PoseDetected,"Idle blinks and yawns on relaxed rig model "+mode);
+                    ui.tracking.NativeSpeaking=true;yield return new WaitForSecondsRealtime(.2f);ui.tracking.NativeSpeaking=false;
+                    yield return new WaitForSecondsRealtime(.5f);
+                    Check(ui.tracking.GetExpression("jawOpen")<.1f,"Speech cancels idle yawn model "+mode);motion.IdleEnabled=false;
                     Call(ui,"SelectRunMode",false);Check(!ui.tracking.AgentMode,"Webcam input restored model "+mode);
                 }
                 ui.Vrm.Shutdown();yield return null;yield return new WaitForEndOfFrame();
@@ -80,7 +228,7 @@ namespace WebcamAvatar
                     Check((bool)ui.GetType().GetField("partnerSucceeded",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui)&&jobField.GetValue(ui)==null&&response.text!="Dingous está pensando…"&&response.text.Length>10,"Partner answer and speech process completed model "+mode);
                     string replyPath=(string)ui.GetType().GetField("partnerLast",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
                     Check(response.text==JsonUtility.FromJson<PartnerContent>(File.ReadAllText(replyPath)).answer,"Full partner response displayed model "+mode);
-                    yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(Application.temporaryCachePath,"dingous-partner-"+mode+".png")));
+                    if(SystemInfo.graphicsDeviceType!=UnityEngine.Rendering.GraphicsDeviceType.Null)yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(Application.temporaryCachePath,"dingous-partner-"+mode+".png")));
                     Call(ui,"StopPartner");Call(ui,"ShowPage",3);
                 }
                 Debug.Log("CORPORATE_PARTNER_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
@@ -354,7 +502,7 @@ namespace WebcamAvatar
             Debug.Log("CORPORATE_RESULT="+(!failed));Application.Quit(failed?1:0);
         }
         static Point P(float x,float y,float z=0)=>new Point{x=x,y=y,z=z,confidence=1};
-        IEnumerator VerifyRig(StudioUI ui,string label)
+        IEnumerator VerifyRig(StudioUI ui,string label,bool requireExpressions=true)
         {
             var rig=ui.Vrm.Instance.Runtime.ControlRig;var packet=new TrackingFrame{pose=true,face=false,shapes=Array.Empty<Shape>(),rotation=Array.Empty<float>()};
             var attachments=new Dictionary<Transform,Vector3>();
@@ -399,8 +547,10 @@ namespace WebcamAvatar
                 bool customFace=false;foreach(var key in expressions.ExpressionKeys)if(key.Preset==ExpressionPreset.custom&&key.Name=="jawOpen")customFace=true;
                 var mouth=customFace?ExpressionKey.CreateCustom("jawOpen"):ExpressionKey.Aa;
                 var eye=customFace?ExpressionKey.CreateCustom(mirror?"eyeBlinkRight":"eyeBlinkLeft"):ExpressionKey.CreateFromPreset(mirror?ExpressionPreset.blinkRight:ExpressionPreset.blinkLeft);
-                Check(expressions.GetWeight(mouth)>.6f,label+" jaw expression mirror "+mirror);
-                Check(expressions.GetWeight(eye)>.6f,label+" unilateral blink mirror "+mirror);
+                if(requireExpressions||ui.Vrm.HasFacialBindings){
+                    Check(expressions.GetWeight(mouth)>.6f,label+" jaw expression mirror "+mirror);
+                    Check(expressions.GetWeight(eye)>.6f,label+" unilateral blink mirror "+mirror);
+                }else Debug.Log("CORPORATE_CAPABILITY: "+label+" has no facial blendshapes; facial assertions not applicable.");
                 var neutralHead=head.rotation;float yaw=.3f;
                 packet.rotation=new[]{Mathf.Cos(yaw),0,Mathf.Sin(yaw),0,1,0,-Mathf.Sin(yaw),0,Mathf.Cos(yaw)};
                 yield return Send(udp,packet,ui.tracking.port,1.1f);

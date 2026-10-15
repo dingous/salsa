@@ -8,7 +8,7 @@ def select(question,settings):
  q=normalized(question)
  for agent in agents:
   if any(normalized(value) in q for value in (agent.get('name',''),agent['agentKey']) if value):return agent
- roles={'schedule':('agenda','reuniao','compromisso'), 'sales':('venda','cliente','orcamento'), 'billing':('fatura','pagamento','cobranca'), 'support':('erro','problema','suporte')}
+ roles={'music':('musica','musical','playlist','cancao','artista'), 'schedule':('agenda','reuniao','compromisso'), 'sales':('venda','cliente','orcamento'), 'billing':('fatura','pagamento','cobranca'), 'support':('erro','problema','suporte')}
  for role,keywords in roles.items():
   if any(word in q for word in keywords):
    match=next((a for a in agents if a.get('role')==role),None)

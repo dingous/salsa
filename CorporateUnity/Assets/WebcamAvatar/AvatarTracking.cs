@@ -13,6 +13,7 @@ namespace WebcamAvatar
     {
         public string source;
         public bool face, pose;
+        public bool handsTogether;
         public Shape[] shapes;
         public Point[] points;
         public float[] rotation;
@@ -24,6 +25,7 @@ namespace WebcamAvatar
     {
         public int port = 5059;
         public bool NativeSpeaking;
+        public SpeechLipSync Speech;
         public bool AgentMode;
         public void ApplyAgentFrame(TrackingFrame value){if(!AgentMode)return;frame=value;FrameSequence++;received=Time.unscaledTime;}
         public float smoothing = 12;
@@ -39,6 +41,8 @@ namespace WebcamAvatar
         public Point[] ImagePosePoints=>PoseDetected&&frame.imagePose!=null&&frame.imagePose.Length==33?frame.imagePose:null;
         public int FrameSequence {get;private set;}
         public bool HandsDetected => GetHand(true)!=null || GetHand(false)!=null;
+        float handsTogetherAt=-10;
+        public bool HandsTogether=>Connected&&Time.unscaledTime-handsTogetherAt<.25f&&GetHand(true)!=null&&GetHand(false)!=null;
         public bool FullBodyDetected {
             get {var p=PosePoints;if(p==null)return false;foreach(int i in new[]{11,12,13,14,15,16,23,24,25,26,27,28,29,30,31,32})if(p[i].confidence<.55f)return false;return true;}
         }
@@ -70,7 +74,7 @@ namespace WebcamAvatar
         }
         public void ClearSource(){
             if(socket!=null)try{for(int i=0;i<64&&socket.Available>0;i++){IPEndPoint endpoint=null;socket.Receive(ref endpoint);}}catch(SocketException){}
-            frame=null;received=-10;poseFilter.Reset();leftHandFilter.Reset();rightHandFilter.Reset();expressions.Clear();hasBodyReference=false;neutral=Quaternion.identity;HeadRotation=Quaternion.identity;}
+            frame=null;received=-10;handsTogetherAt=-10;poseFilter.Reset();leftHandFilter.Reset();rightHandFilter.Reset();expressions.Clear();hasBodyReference=false;neutral=Quaternion.identity;HeadRotation=Quaternion.identity;}
         public void Calibrate() {if(FaceDetected)neutral=rawHead;if(BodyCenter(out var center)){bodyReference=center;hasBodyReference=true;}}
         [Tooltip("Opcional: avatar importado com rig Humanoid e blendshapes MediaPipe/ARKit.")]
         public Animator humanoid;
@@ -178,7 +182,7 @@ namespace WebcamAvatar
                     if(newest.pose)newest.points=poseFilter.Process(newest.points,Time.unscaledTime);else poseFilter.Reset();
                     newest.leftHand=leftHandFilter.Process(newest.leftHand,Time.unscaledTime);
                     newest.rightHand=rightHandFilter.Process(newest.rightHand,Time.unscaledTime);
-                    frame=newest;FrameSequence++;received=Time.unscaledTime;error=null;
+                    frame=newest;FrameSequence++;received=Time.unscaledTime;if(newest.handsTogether)handsTogetherAt=Time.unscaledTime;error=null;
                 }
             } catch(SocketException e) { if(e.SocketErrorCode!=SocketError.WouldBlock) error=e.Message; }
               catch(Exception e) { error=e.Message; }
@@ -186,7 +190,11 @@ namespace WebcamAvatar
             bool live=Time.unscaledTime-received<.6f;
             expressions.Clear();
             if(live && frame.face && frame.shapes!=null) foreach(var s in frame.shapes) expressions[s.name]=Mathf.Clamp01(s.value);
-            if(NativeSpeaking)expressions["jawOpen"] = .15f+.35f*Mathf.Abs(Mathf.Sin(Time.unscaledTime*12));
+            if(AgentMode&&Speech!=null){
+                // Silence is genuinely closed. A speaking flag must never invent mouth motion.
+                NativeSpeaking=Speech.Playing;
+                expressions["jawOpen"]=Speech.Jaw;expressions["mouthFunnel"]=Speech.Round;
+            }else if(NativeSpeaking&&Speech==null)expressions["jawOpen"] = .15f+.35f*Mathf.Abs(Mathf.Sin(Time.unscaledTime*12));
             var points=live && frame.pose && frame.points.Length==33 ? frame.points : null;
             Quaternion rotation=Quaternion.identity;
             if(live && frame.face && frame.rotation!=null && frame.rotation.Length==9) {
@@ -203,7 +211,9 @@ namespace WebcamAvatar
             foreach(var s in expressions) if(!smoothed.ContainsKey(s.Key)) { smoothed[s.Key]=0; keys.Add(s.Key); }
             foreach(var key in keys){
                 float target=Mathf.Clamp01(Expression(key)*expressionGain);
-                if(key.StartsWith("eyeBlink")){
+                if(AgentMode&&Speech!=null&&(key=="jawOpen"||key.StartsWith("mouth"))){
+                    smoothed[key]=Mathf.Lerp(smoothed[key],target,1-Mathf.Exp(-45*Time.unscaledDeltaTime));
+                }else if(key.StartsWith("eyeBlink")){
                     target=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.15f,.65f,target));
                     float rate=target>smoothed[key]?80:35;
                     smoothed[key]=Mathf.Lerp(smoothed[key],target,1-Mathf.Exp(-rate*Time.unscaledDeltaTime));

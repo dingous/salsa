@@ -7,6 +7,17 @@ def matches(question):
     return any(p in q for p in ('o que estou fazendo','o que eu estou fazendo','o que voce ve','olhe pela camera','analise o ambiente','analisar o ambiente','me reconhece','o que tenho na mao'))
 
 def capture(camera=0):
+    # Reuse active Eyes capture instead of opening the same camera twice.
+    import os
+    from pathlib import Path
+    token_file=Path(os.getenv('LOCALAPPDATA',str(Path.home())))/'Dingous'/'Eyes'/'local-token.txt'
+    if token_file.exists():
+        request=urllib.request.Request('http://127.0.0.1:8768/frame',headers={'Authorization':'Bearer '+token_file.read_text(encoding='ascii').strip()})
+        try:
+            with urllib.request.urlopen(request,timeout=2) as response:return base64.b64encode(response.read(1000000)).decode('ascii')
+        except urllib.error.HTTPError as error:
+            if error.code!=404:raise RuntimeError('Visão local indisponível.') from error
+        except urllib.error.URLError:pass
     import cv2
     stream=cv2.VideoCapture(camera,cv2.CAP_DSHOW)
     try:

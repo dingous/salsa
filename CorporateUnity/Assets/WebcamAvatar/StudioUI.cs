@@ -9,7 +9,7 @@ using UnityEngine.UI;
 namespace WebcamAvatar
 {
     /// <summary>Local avatar creator, appearance editor and camera broadcast control.</summary>
-    public class StudioUI : MonoBehaviour
+    public partial class StudioUI : MonoBehaviour
     {
         public CartoonAvatar avatar;
         public AvatarTracking tracking;
@@ -30,7 +30,10 @@ namespace WebcamAvatar
         InputField nameField;
         RawImage referenceImage, avatarImage;
         GameObject photoPlaceholder;
-        LocalJob voiceListener;Toggle voiceToggle;bool resumeVoice;
+        LocalJob voiceListener,eyesJob;Toggle voiceToggle;bool resumeVoice;
+        SpeechLipSync speechPlayback;
+        string eyesState="desconectado";
+        [Serializable] sealed class EyesHeartbeat {public string eyes;}
         AndroidRuntime androidRuntime;
         LocalJob partnerJob;InputField partnerQuestion,partnerAnswer;string partnerLast;bool partnerSucceeded,partnerMode;
         [Serializable] class PartnerReply {public string question,answer;}
@@ -44,6 +47,33 @@ namespace WebcamAvatar
         WindowsAgentPresence presence;
         AgentMotion agentMotion;
         Vector2 agentReplyScroll;
+        LocalJob ttsJob;bool ttsOpen,ttsResumeListening;Vector2 ttsScroll;
+        string[] ttsVoices=Array.Empty<string>();string ttsSelected="";
+        [Serializable] class TtsChoices {public string[] voices;public string selected;}
+        void ChooseTts(){
+            if(androidRuntime!=null){androidRuntime.ChooseVoice();return;}
+            ttsOpen=true;SetPresentation(true);RunTts();
+        }
+        void RunTts(params string[] args){
+            if(ttsJob!=null)return;
+            try{ttsJob=new LocalJob("tts_preferences.py",args);}catch(Exception e){SetStatus(e.Message,true);}
+        }
+        void DrawTts(float width,float height){
+            GUI.Box(new Rect(16,16,width-32,height-32),"VOZ TTS · WINDOWS");
+            GUI.Label(new Rect(32,48,width-64,44),"Escolha uma voz instalada. Padrão usa a configuração do admin.");
+            bool previous=GUI.enabled;GUI.enabled=ttsJob==null;
+            ttsScroll=GUI.BeginScrollView(new Rect(28,94,width-56,height-214),ttsScroll,new Rect(0,0,width-80,(ttsVoices.Length+1)*42));
+            for(int i=0;i<=ttsVoices.Length;i++){
+                string name=i==0?"":ttsVoices[i-1];
+                if(GUI.Button(new Rect(0,i*42,width-92,36),(ttsSelected==name?"✓ ":"")+(i==0?"Padrão do admin":name)))RunTts("--select",name);
+            }
+            GUI.EndScrollView();
+            if(GUI.Button(new Rect(28,height-104,(width-68)/2,38),"Testar voz e lip sync SALSA")){
+                ttsResumeListening=voiceListener!=null;if(ttsResumeListening)SetVoiceListening(false);RunTts("--preview");
+            }
+            if(GUI.Button(new Rect(40+(width-68)/2,height-104,(width-68)/2,38),"Voltar"))ttsOpen=false;
+            GUI.enabled=previous;GUI.Label(new Rect(28,height-60,width-56,28),ttsJob!=null?"Preparando voz…":status.text);
+        }
         bool agentResumeQueued;
         public void PauseAgent(){SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);}
         LocalJob generator, trackerJob, cameraJob;
@@ -93,6 +123,7 @@ namespace WebcamAvatar
             MakeRoundedSprite(); Build(); RefreshLibrary();
             presence=gameObject.AddComponent<WindowsAgentPresence>();
             agentMotion=gameObject.AddComponent<AgentMotion>();agentMotion.tracking=tracking;
+            if(Application.platform==RuntimePlatform.WindowsPlayer){speechPlayback=gameObject.AddComponent<SpeechLipSync>();speechPlayback.tracking=tracking;tracking.Speech=speechPlayback;}
             if(Application.platform==RuntimePlatform.Android){androidRuntime=gameObject.AddComponent<AndroidRuntime>();androidRuntime.studio=this;androidRuntime.tracking=tracking;}
             int savedIndex=Array.IndexOf(savedFolders,PlayerPrefs.GetString("LastAvatar",""));
             if(savedIndex>=0 && !string.IsNullOrEmpty(JsonUtility.FromJson<AvatarProfile>(File.ReadAllText(Path.Combine(savedFolders[savedIndex],"avatar.json"))).vrmSource))LoadSaved(savedIndex+1);
@@ -198,9 +229,11 @@ namespace WebcamAvatar
             Label("LOCAL",root.transform,16,838,60,24,10,muted).alignment=TextAnchor.MiddleCenter;
             Label("CORPORATE",root.transform,116,31,140,34,25,white,FontStyle.Bold);
             Label("AVATAR STUDIO · UNITY",root.transform,116,68,180,20,11,muted,FontStyle.Bold);
-            var local=Panel("Local badge",root.transform,1220,40,104,30,new Color(.085f,.18f,.16f));Label("100% LOCAL",local.transform,0,0,104,30,10,green,FontStyle.Bold).alignment=TextAnchor.MiddleCenter;
+            var local=Panel("Local badge",root.transform,1220,40,104,30,new Color(.085f,.18f,.16f));Label("IA LOCAL",local.transform,0,0,104,30,10,green,FontStyle.Bold).alignment=TextAnchor.MiddleCenter;
             for(int i=0;i<4;i++){int index=i;navigation[i]=Button(new[]{"Criar avatar","Aparência","Transmissão","Modelo VRM"}[i],root.transform,400+i*132,40,124,40,()=>ShowPage(index));}
-            styleDropdown=Dropdown(new[]{"Avatar: Cartoon","Avatar: Corporativo"},root.transform,982,40,220,40,SelectAvatarMode);
+            Button("Avatares",root.transform,928,40,124,40,ShowPresets);
+            styleDropdown=Dropdown(new[]{"Cartoon · UniVRM","Corporativo · MakeHuman/MPFB","Corporativo 2 · Real-Time Full Body Tracking","Corporativo 3 · Avaturn","Corporativo 4 · MetaHuman"},root.transform,982,40,220,40,SelectAvatarMode);
+            foreach(var text in styleDropdown.GetComponentsInChildren<Text>(true)){text.resizeTextForBestFit=true;text.resizeTextMinSize=9;text.resizeTextMaxSize=14;}
             styleDropdown.SetValueWithoutNotify(avatar.Profile.style);
             webcamModeButton=Button("Modo Webcam",root.transform,116,98,190,42,()=>SelectRunMode(false));
             agentModeButton=Button("Modo Agente",root.transform,318,98,190,42,()=>SelectRunMode(true));
@@ -228,7 +261,7 @@ namespace WebcamAvatar
             Label("PNG ou JPEG · até 25 MB · um rosto",parent,24,364,322,24,12,muted);
             nameField=Input("Nome do avatar",parent,24,400,322,44);nameField.text="Meu avatar";
             generateButton=Button("Gerar meu avatar  →",parent,24,460,322,48,Generate,true);generateButton.interactable=false;
-            Label("Foto como referência de cores e proporções. Processo local.",parent,24,520,322,24,11,muted);
+            Button("Avatares prontos · 12 presets",parent,24,518,322,28,ShowPresets);
         }
         void BuildVrm(Transform parent)
         {
@@ -236,12 +269,12 @@ namespace WebcamAvatar
             Label("Seu avatar profissional.",parent,24,60,322,58,24,white,FontStyle.Bold);
             modelStatus=Label("Carregando o modelo VRM…",parent,24,130,322,100,15,white);
             Button("Importar arquivo .vrm",parent,24,244,322,46,SelectVrm,true);
-            Button("Usar humano corporativo",parent,24,304,322,42,()=>{if(!busy)StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));});
-            Button("Usar gerador procedural",parent,24,360,322,42,()=>{if(busy)return;Vrm.UseProcedural();avatar.Profile.vrmSource=null;RefreshModelStatus();SetStatus("Gerador procedural selecionado. Gere e personalize pela foto.");});
+            Button("Usar humano corporativo",parent,24,304,322,42,()=>{if(busy)return;avatar.Profile.presetId=null;avatar.Profile.style=1;avatar.Profile.corporate=true;StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));});
+            Button("Usar gerador procedural",parent,24,360,322,42,()=>{if(busy)return;avatar.Profile.presetId=null;Vrm.UseProcedural();avatar.Profile.vrmSource=null;RefreshModelStatus();SetStatus("Gerador procedural selecionado. Gere e personalize pela foto.");});
             Dropdown(new[]{"Apresentação: Profissional","Apresentação: Corporativo"},parent,24,418,322,40,i=>SetVrmPresentation(i==1)).SetValueWithoutNotify(avatar.Profile.corporate?1:0);
             Button("Laboratório Dingous",parent,24,466,156,30,ShowLaboratory);
             Button("Restaurar cores",parent,190,466,156,30,()=>{Vrm.ResetAppearance();SetStatus("Cores originais restauradas.");});
-            Label("Escolha Webcam ou Agente no topo do aplicativo.",parent,24,504,322,34,12,muted);
+            Button("Galeria de avatares prontos",parent,24,508,322,32,ShowPresets);
         }
         void RefreshRunMode(){
             webcamModeButton.GetComponent<Image>().color=partnerMode?field:purple;
@@ -253,6 +286,7 @@ namespace WebcamAvatar
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){PlayerPrefs.SetInt("DingousAgentAvailable",0);PlayerPrefs.Save();}
             if(presentation)SetPresentation(false);
             partnerMode=false;tracking.AgentMode=false;tracking.ClearSource();SetVoiceListening(false);StopPartner();StopLaboratory();
+            eyesJob?.Dispose();eyesJob=null;
             if(androidRuntime!=null)androidRuntime.SetTracking(false);
             avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
             ShowPage(2);RefreshRunMode();SetStatus("Modo Webcam. Inicie o rastreamento e ative a câmera virtual em Transmissão.");
@@ -267,6 +301,9 @@ namespace WebcamAvatar
             tracking.AgentMode=true;avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){PlayerPrefs.SetInt("DingousAgentAvailable",1);PlayerPrefs.Save();}
             StopCamera();RefreshRunMode();
+            if(Application.platform==RuntimePlatform.WindowsPlayer && eyesJob==null && Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){
+                try{eyesJob=new LocalJob("avatar_eyes.py");}catch(Exception e){SetStatus("Olhos do Avatar indisponíveis: "+e.Message,true);}
+            }
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Parceiro Dingous",responsive.Content,116,256,370,558,panel).gameObject;
             Label("MODO AGENTE · DINGOUS",advancedPanel.transform,24,24,322,32,20,white,FontStyle.Bold);
@@ -279,6 +316,7 @@ namespace WebcamAvatar
             Button("Aprovar para fine-tuning",advancedPanel.transform,24,442,322,32,()=>RunPartner("--approve"));
             Button("Parar áudio",advancedPanel.transform,24,484,154,32,()=>{StopPartner();SetVoiceListening(false);voiceToggle.SetIsOnWithoutNotify(false);});
             Button("Modo Webcam",advancedPanel.transform,190,484,156,32,()=>SelectRunMode(false));responsive.LayoutAdvanced();
+            Button("Escolher voz TTS",advancedPanel.transform,24,524,322,28,ChooseTts);
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);SetPresentation(true);}
         }
         void OnGUI(){
@@ -288,8 +326,9 @@ namespace WebcamAvatar
             var safe=Screen.safeArea;
             float width=safe.width/scale,height=safe.height/scale,left=safe.x/scale,top=(Screen.height-safe.yMax)/scale;
             GUI.BeginGroup(new Rect(left,top,width,height));
+            if(ttsOpen){DrawTts(width,height);GUI.EndGroup();GUI.matrix=Matrix4x4.identity;return;}
             GUI.Box(new Rect(16,16,width-32,112),"DINGOUS · SEU AGENTE PESSOAL");
-            GUI.Label(new Rect(32,46,width-64,32),status!=null?status.text:"Diga Dingous e seu comando.");
+            GUI.Label(new Rect(32,46,width-64,32),(status!=null?status.text:"Diga Dingous e seu comando.")+(Application.platform==RuntimePlatform.WindowsPlayer?" · Olhos: "+eyesState:""));
             bool listening=androidRuntime!=null?androidRuntime.Listening:voiceListener!=null;
             float buttonWidth=(width-88)/3;
             if(GUI.Button(new Rect(32,82,buttonWidth,32),listening?"Pausar escuta":"Retomar escuta")){
@@ -301,13 +340,25 @@ namespace WebcamAvatar
                 if(GUI.Button(new Rect(16,138,140,30),"Avatar no canto"))presence.Corner();
                 if(GUI.Button(new Rect(168,138,140,30),"Segundo plano"))presence.Hide();
             }
+            if(GUI.Button(new Rect(16,Application.platform==RuntimePlatform.WindowsPlayer?176:138,140,30),"Voz TTS"))ChooseTts();
+            if(GUI.Button(new Rect(168,Application.platform==RuntimePlatform.WindowsPlayer?176:138,140,30),"Avatares"))ShowPresets();
+            // Presentation hides the configuration canvas, so it needs its own editable composer.
+            float composerY=height-66;
+            GUI.Box(new Rect(16,composerY-8,width-32,58),GUIContent.none);
+            GUI.SetNextControlName("AgentQuestion");
+            if(partnerQuestion!=null)partnerQuestion.text=GUI.TextField(new Rect(28,composerY,width-142,36),partnerQuestion.text,2000);
+            bool submit=Event.current.type==EventType.KeyDown && Event.current.keyCode==KeyCode.Return && GUI.GetNameOfFocusedControl()=="AgentQuestion";
+            if(submit)Event.current.Use();
+            bool previousEnabled=GUI.enabled;GUI.enabled=partnerJob==null;
+            if(GUI.Button(new Rect(width-106,composerY,78,36),"Enviar")||submit)RunPartner("--question");
+            GUI.enabled=previousEnabled;
             string reply=partnerAnswer!=null?partnerAnswer.text:"";
             if(!string.IsNullOrWhiteSpace(reply)){
                 float responseHeight=Mathf.Min(180,height*.3f),responseWidth=width-56;
                 var textStyle=new GUIStyle(GUI.skin.label){wordWrap=true};
                 float textHeight=textStyle.CalcHeight(new GUIContent(reply),responseWidth-24);
-                GUI.Box(new Rect(16,height-responseHeight-16,width-32,responseHeight),GUIContent.none);
-                agentReplyScroll=GUI.BeginScrollView(new Rect(24,height-responseHeight-8,width-48,responseHeight-16),agentReplyScroll,new Rect(0,0,responseWidth,Mathf.Max(responseHeight-16,textHeight)));
+                GUI.Box(new Rect(16,composerY-responseHeight-20,width-32,responseHeight),GUIContent.none);
+                agentReplyScroll=GUI.BeginScrollView(new Rect(24,composerY-responseHeight-12,width-48,responseHeight-16),agentReplyScroll,new Rect(0,0,responseWidth,Mathf.Max(responseHeight-16,textHeight)));
                 GUI.Label(new Rect(0,0,responseWidth-24,textHeight),reply,textStyle);GUI.EndScrollView();
             }
             GUI.EndGroup();
@@ -315,14 +366,15 @@ namespace WebcamAvatar
         }
         void SetVoiceListening(bool enabled){
             if(androidRuntime!=null){androidRuntime.SetListening(enabled);return;}
-            if(voiceListener!=null){voiceListener.Dispose();voiceListener=null;tracking.NativeSpeaking=false;}
+            if(voiceListener!=null){voiceListener.Dispose();voiceListener=null;tracking.NativeSpeaking=false;speechPlayback?.Stop();}
             if(!enabled){SetStatus("Microfone do Dingous desligado.");return;}
             StopPartner();try{partnerLast=Path.Combine(Storage,"Partner","voice-answer.json");voiceListener=new LocalJob("dingous_listener.py","--output",partnerLast);SetStatus("Abrindo o microfone local. Diga Dingous e sua pergunta.");}catch(Exception e){SetStatus(e.Message,true);}
         }
         void RunPartner(string operation){
+            if(partnerJob!=null){SetStatus("Aguarde a resposta ou pare o áudio.");return;}
+            if(operation=="--question" && (partnerQuestion==null || string.IsNullOrWhiteSpace(partnerQuestion.text))){SetStatus("Digite sua pergunta ou use a escuta por voz.");return;}
             if(androidRuntime!=null){if(operation=="--question")androidRuntime.Ask(partnerQuestion.text);else SetStatus("Memória e treinamento móvel ainda são administrados no ChatTrade.");return;}
             resumeVoice=voiceListener!=null;SetVoiceListening(false);if(voiceToggle!=null)voiceToggle.SetIsOnWithoutNotify(false);
-            if(partnerJob!=null){SetStatus("Aguarde a resposta ou pare o áudio.");return;}
             try {
                 if(operation=="--approve"&&string.IsNullOrEmpty(partnerLast)){SetStatus("Receba uma resposta antes de aprovar.");return;}
                 var args=new List<string>{operation,operation=="--approve"?partnerLast:partnerQuestion.text};
@@ -330,7 +382,7 @@ namespace WebcamAvatar
                 partnerSucceeded=false;partnerJob=new LocalJob("dingous_partner.py",args.ToArray());
             }catch(Exception e){SetStatus(e.Message,true);}
         }
-        void StopPartner(){resumeVoice=false;if(partnerJob!=null){partnerJob.Dispose();partnerJob=null;tracking.NativeSpeaking=false;SetStatus("Parceiro interrompido.");}}
+        void StopPartner(){resumeVoice=false;speechPlayback?.Stop();if(partnerJob!=null){partnerJob.Dispose();partnerJob=null;tracking.NativeSpeaking=false;SetStatus("Parceiro interrompido.");}}
         void ShowLaboratory(){
             if(advancedPanel!=null)Destroy(advancedPanel);
             advancedPanel=Panel("Laboratório Dingous",responsive.Content,116,256,370,558,panel).gameObject;
@@ -349,32 +401,36 @@ namespace WebcamAvatar
                 string path=Path.Combine(Storage,"Laboratory",DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")+".json");
                 var args=new List<string>{"--port",tracking.port.ToString(),"--output",path};
                 if(demo)args.Add("--demo");else {args.Add("--prompt");args.Add(laboratoryPrompt.text);}
-                laboratory=new LocalJob("dingous_lab.py",args.ToArray());SetStatus(demo?"Executando demonstração programada.":"Ollama está gerando seu plano de expressões e movimentos…");
+                laboratory=new LocalJob("dingous_lab.py",args.ToArray());agentMotion.IdleEnabled=false;SetStatus(demo?"Executando demonstração programada.":"Ollama está gerando seu plano de expressões e movimentos…");
             }catch(Exception e){SetStatus(e.Message,true);}
         }
-        void StopLaboratory(){if(laboratory!=null){laboratory.Dispose();laboratory=null;SetStatus("Teste Dingous encerrado.");}}
+        void StopLaboratory(){if(laboratory!=null){laboratory.Dispose();laboratory=null;agentMotion.IdleEnabled=true;SetStatus("Teste Dingous encerrado.");}}
         void SelectVrm()
         {
             if(busy)return;
-            try{string path=PhotoPicker.Pick(true);if(path!=null)StartCoroutine(LoadVrmRoutine(path));}
+            try{string path=PhotoPicker.Pick(true);if(path!=null){avatar.Profile.presetId=null;StartCoroutine(LoadVrmRoutine(path));}}
             catch(Exception e){SetStatus("Não foi possível selecionar o modelo: "+e.Message,true);}
         }
         void SelectAvatarMode(int mode)
         {
             if(busy){styleDropdown.SetValueWithoutNotify(CurrentAvatarMode);return;}
+            if(mode>=2&&mode<=4){styleDropdown.SetValueWithoutNotify(CurrentAvatarMode);ShowFramework(mode);return;}
+            if(!string.IsNullOrEmpty(avatar.Profile.presetId)&&Vrm.Active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman){
+                avatar.Profile.style=mode;SetVrmPresentation(mode==1);Vrm.ApplyAppearance();SyncAppearance();RefreshModelStatus();return;
+            }
             if(mode==0){
                 avatar.Profile.style=0;avatar.Profile.corporate=false;
                 StartCoroutine(LoadVrmRoutine(Path.Combine(Application.streamingAssetsPath,"Avatars","Seed-san.vrm")));
             }else{
                 avatar.Profile.style=1;avatar.Profile.corporate=true;
-                if(Vrm.Instance!=null&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman){
+                if(Vrm.Instance!=null&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman&&!Vrm.IsMetaHuman){
                     Vrm.UseVrm();avatar.Profile.vrmSource="builtin:CorporateHuman";Vrm.ApplyAppearance();
                     SetVrmPresentation(true);SyncAppearance();RefreshModelStatus();
                     SetStatus("Avatar Corporativo ativo. Escolha a roupa na aba Aparência.");
                 }else StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));
             }
         }
-        int CurrentAvatarMode=>Vrm.Active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman?1:0;
+        int CurrentAvatarMode=>Vrm.IsMetaHuman?4:Vrm.IsAvaturn?3:Vrm.Active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman?avatar.Profile.style:0;
         public IEnumerator LoadVrmRoutine(string path)
         {
             if(busy)yield break;busy=true;SetStatus("Carregando malhas, texturas, expressões e rig do avatar VRM…");
@@ -408,11 +464,17 @@ namespace WebcamAvatar
         {
             bool active=Vrm.Active;
             string facialInfo=active && Vrm.Appearance!=null && Vrm.Appearance.IsCorporateHuman?"52 controles faciais · 15 visemes":$"{Vrm.ExpressionCount} expressões VRM";
+            if(Vrm.IsAvaturn&&!Vrm.HasFacialBindings)facialInfo="Rosto estático · use Avaturn T2 para expressões";
+            if(Vrm.IsMetaHuman&&!Vrm.HasFacialBindings)facialInfo="Sem blendshapes faciais vinculados · prepare ARKit no Unity";
             modelStatus.text=active?$"{Vrm.ModelName}\n{facialInfo}\nRig Humanoid · mãos e dedos\nCréditos: {string.Join(", ",Vrm.Instance.Vrm.Meta.Authors)}":"Gerador procedural ativo";
             rigStatus.text=active?"UNIVRM  /  ROSTO · CORPO · MÃOS":"AVATAR PRO  /  RIG FACIAL 52";
-            bool editable=!active || Vrm.Appearance!=null && Vrm.Appearance.IsCorporateHuman;
+            bool editable=!active || !Vrm.IsMetaHuman && Vrm.Appearance!=null && Vrm.Appearance.IsCorporateHuman;
             styleDropdown.interactable=!busy;styleDropdown.SetValueWithoutNotify(CurrentAvatarMode);hairDropdown.interactable=editable;glassesToggle.interactable=editable;beardToggle.interactable=editable && active;
-            clothingDropdown.interactable=active&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman;
+            clothingDropdown.interactable=active&&!Vrm.IsMetaHuman&&Vrm.Appearance!=null&&Vrm.Appearance.IsCorporateHuman;
+            if(clothingDropdown.interactable){
+                bool woman=Vrm.ModelName=="Corporate Woman";
+                clothingDropdown.ClearOptions();clothingDropdown.AddOptions(new System.Collections.Generic.List<string>(woman?new[]{"Social: conjunto executivo","Casual: conjunto claro","Casual: conjunto urbano","Esportivo: conjunto","Casual: camiseta azul","Casual: jaqueta","Casual: camiseta branca"}:new[]{"Social: terno e gravata","Social: camisa azul","Casual: malha manga longa","Social: camisa listrada","Casual: camiseta azul","Casual: jaqueta","Casual: camiseta branca"}));clothingDropdown.SetValueWithoutNotify(avatar.Profile.clothingStyle);
+            }
             SetButtonLabel(generateButton,"Personalizar pela foto  →");
         }
         void FrameVrm(bool full)
@@ -482,6 +544,7 @@ namespace WebcamAvatar
         }
         void ShowPage(int index)
         {
+            if(presetPanel!=null){Destroy(presetPanel);presetPanel=null;}
             if(advancedPanel!=null){Destroy(advancedPanel);advancedPanel=null;}
             for(int i=0;i<pages.Length;i++){pages[i].SetActive(i==index);navigation[i].GetComponent<Image>().color=i==index?purple:field;}
         }
@@ -669,7 +732,7 @@ namespace WebcamAvatar
         void ToggleTracking()
         {
             if(androidRuntime!=null){androidRuntime.SetTracking(!androidRuntime.Tracking);SetButtonLabel(trackButton,androidRuntime.Tracking?"Parar rastreamento":"Iniciar rastreamento");return;}
-            partnerMode=false;tracking.AgentMode=false;tracking.ClearSource();RefreshRunMode();SetVoiceListening(false);StopPartner();StopLaboratory();
+            partnerMode=false;tracking.AgentMode=false;tracking.ClearSource();RefreshRunMode();SetVoiceListening(false);StopPartner();StopLaboratory();eyesJob?.Dispose();eyesJob=null;
             if(trackerJob!=null){trackerJob.Dispose();trackerJob=null;SetButtonLabel(trackButton,"Iniciar rastreamento");SetStatus("Rastreamento encerrado. A webcam foi liberada.");return;}
             try{avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);var arguments=new List<string>{"--camera",cameraIndex.ToString(),"--hands","--port",tracking.port.ToString(),"--pose-quality",poseQuality};if(!framingPreview)arguments.Add("--no-preview");trackerJob=new LocalJob("tracker.py",arguments.ToArray());SetButtonLabel(trackButton,"Parar rastreamento");SetStatus("Abrindo a webcam para rosto, braços e dedos. Aguarde o primeiro rastreamento…");}
             catch(Exception e){SetStatus(e.Message,true);}
@@ -763,11 +826,23 @@ namespace WebcamAvatar
         }
         void Update()
         {
+            if(eyesJob!=null){
+                while(eyesJob.Output.TryDequeue(out string eyesLine)){try{var heartbeat=JsonUtility.FromJson<EyesHeartbeat>(eyesLine);eyesState=heartbeat.eyes=="running"?"câmera ativa":heartbeat.eyes=="disabled"?"desativado no admin":"sem conexão";}catch(ArgumentException){}}
+                if(eyesJob.Finished){eyesState="desconectado";if(eyesJob.ExitCode!=0)SetStatus(eyesJob.FriendlyError("Configure Olhos do Avatar no admin e a conexão local ChatTrade."),true);eyesJob.Dispose();eyesJob=null;}
+            }
             if(canvas==null)return;
+            if(ttsJob!=null){
+                while(ttsJob.Output.TryDequeue(out string line)){
+                    if(line.StartsWith("SPEECH_AUDIO|"))speechPlayback?.PlayFile(line.Substring(13));
+                    else if(line.StartsWith("VOICES|")){var choices=JsonUtility.FromJson<TtsChoices>(line.Substring(7));ttsVoices=choices.voices??Array.Empty<string>();ttsSelected=choices.selected??"";SetStatus("Voz deste dispositivo: "+(ttsSelected==""?"padrão do admin":ttsSelected));}
+                }
+                if(ttsJob.Finished){if(ttsJob.ExitCode!=0)SetStatus(ttsJob.FriendlyError("Falha ao configurar a voz."),true);ttsJob.Dispose();ttsJob=null;if(ttsResumeListening&&partnerMode){ttsResumeListening=false;SetVoiceListening(true);}}
+            }
             if(rebuildPending && Time.unscaledTime-lastDetailChange>.18f){avatar.Rebuild(avatar.Profile);rebuildPending=false;}
             if(voiceListener!=null){
                 while(voiceListener.Output.TryDequeue(out string voiceLine)){
                     if(voiceLine.StartsWith("ANSWER|")&&partnerAnswer!=null){var reply=JsonUtility.FromJson<PartnerReply>(File.ReadAllText(voiceLine.Substring(7)));partnerAnswer.text=reply.answer;agentMotion.Respond(reply.question,reply.answer);}
+                    else if(voiceLine.StartsWith("SPEECH_AUDIO|")){speechPlayback?.PlayFile(voiceLine.Substring(13));}
                     else if(voiceLine.StartsWith("SPEECH|"))tracking.NativeSpeaking=voiceLine=="SPEECH|START";
                     else if(voiceLine.StartsWith("QUESTION|")&&partnerQuestion!=null)partnerQuestion.text=voiceLine.Substring(9);
                     else if(voiceLine.Contains("|"))SetStatus(voiceLine.Substring(voiceLine.IndexOf('|')+1),voiceLine.StartsWith("VOICE_ERROR|"));
@@ -777,6 +852,7 @@ namespace WebcamAvatar
             if(partnerJob!=null){
                 while(partnerJob.Output.TryDequeue(out string partnerLine)){
                     if(partnerLine.StartsWith("ANSWER|")&&partnerAnswer!=null){var reply=JsonUtility.FromJson<PartnerReply>(File.ReadAllText(partnerLine.Substring(7)));partnerAnswer.text=reply.answer;agentMotion.Respond(reply.question,reply.answer);SetStatus("Resposta local recebida.");}
+                    else if(partnerLine.StartsWith("SPEECH_AUDIO|")){speechPlayback?.PlayFile(partnerLine.Substring(13));}
                     else if(partnerLine.StartsWith("SPEECH|"))tracking.NativeSpeaking=partnerLine=="SPEECH|START";
                     else if(partnerLine.StartsWith("READY|"))SetStatus(partnerLine.Substring(6));
                 }
@@ -784,7 +860,7 @@ namespace WebcamAvatar
             }
             if(laboratory!=null){
                 while(laboratory.Output.TryDequeue(out string labLine))if(labLine.StartsWith("READY|"))SetStatus(labLine.Substring(6)+" · executando no avatar.");
-                if(laboratory.Finished){string result=laboratory.ExitCode==0?"Sequência concluída. Plano salvo na biblioteca de testes.":laboratory.FriendlyError("Falha no laboratório Dingous.");bool error=laboratory.ExitCode!=0;laboratory.Dispose();laboratory=null;SetStatus(result,error);}
+                if(laboratory.Finished){string result=laboratory.ExitCode==0?"Sequência concluída. Plano salvo na biblioteca de testes.":laboratory.FriendlyError("Falha no laboratório Dingous.");bool error=laboratory.ExitCode!=0;laboratory.Dispose();laboratory=null;agentMotion.IdleEnabled=true;SetStatus(result,error);}
             }
             if(UnityEngine.Input.GetKeyDown(KeyCode.F11))SetPresentation(!presentation);
             if(presentation && UnityEngine.Input.GetKeyDown(KeyCode.Escape))SetPresentation(false);
@@ -802,6 +878,8 @@ namespace WebcamAvatar
         }
         void OnDestroy()
         {
+            eyesJob?.Dispose();
+            ttsJob?.Dispose();
             generator?.Dispose();trackerJob?.Dispose();broadcaster?.Stop();cameraJob?.Dispose();
             if(voiceListener!=null)voiceListener.Dispose();if(partnerJob!=null)partnerJob.Dispose();if(laboratory!=null)laboratory.Dispose();if(customBackground!=null)Destroy(customBackground);if(reference!=null)Destroy(reference);if(rounded!=null)Destroy(rounded);if(roundTexture!=null)Destroy(roundTexture);
             if(backdrop!=null)Destroy(backdrop);

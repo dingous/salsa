@@ -23,3 +23,8 @@ https://github.com/makehumancommunity/mpfb2/tree/v2.0.18
 UniVRM 0.131.3 is MIT licensed; see the shared Packages directories.
 
 No BOOTH or Fiverr paid model is included.
+
+Corporate Woman 1.0 uses the same CC0 system assets with the female base and skin,
+female_elegantsuit01, female_casualsuit01/02, female_sportsuit01 and fitted
+male_casualsuit04/05/06. Both bases include seven wardrobe options.
+The twelve presets are local appearance configurations of these two bases.

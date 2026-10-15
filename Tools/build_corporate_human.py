@@ -5,6 +5,8 @@ import zipfile
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
+FEMALE = '--female' in sys.argv
+MODEL = 'CorporateWoman' if FEMALE else 'CorporateHuman'
 DATA = ROOT / 'Downloads/mpfb-user/data'
 DATA.mkdir(parents=True, exist_ok=True)
 for pack in ('makehuman_system_assets', 'faceunits01', 'visemes02', 'bodyparts05', 'glasses01'):
@@ -29,10 +31,10 @@ from mpfb.services.objectservice import ObjectService
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
 macro = TargetService.get_default_macro_info_dict()
-macro.update(gender=1.0, age=.42, muscle=.45, weight=.46)
+macro.update(gender=0.0 if FEMALE else 1.0, age=.38 if FEMALE else .42, muscle=.35 if FEMALE else .45, weight=.46)
 macro['race'] = {'caucasian': .7, 'african': .15, 'asian': .15}
 human = HumanService.create_human(macro_detail_dict=macro)
-skin = AssetService.find_asset_absolute_path('young_caucasian_male.mhmat', asset_subdir='skins')
+skin = AssetService.find_asset_absolute_path('young_caucasian_female.mhmat' if FEMALE else 'young_caucasian_male.mhmat', asset_subdir='skins')
 if not skin:
     raise RuntimeError('Required official skin missing')
 HumanService.set_character_skin(skin, human, skin_type='GAMEENGINE')
@@ -46,8 +48,7 @@ for subdir, name, kind in [
     ('hair', 'short02.mhclo', 'Hair'),
     ('hair', 'short04.mhclo', 'Hair'),
     ('hair', 'long01.mhclo', 'Hair'),
-    ('clothes', 'male_elegantsuit01.mhclo', 'Clothes'),
-    *[('clothes', f'male_casualsuit{i:02}.mhclo', 'Clothes') for i in range(1, 7)],
+    *[('clothes', name+'.mhclo', 'Clothes') for name in (['female_elegantsuit01','female_casualsuit01','female_casualsuit02','female_sportsuit01','male_casualsuit04','male_casualsuit05','male_casualsuit06'] if FEMALE else ['male_elegantsuit01',*[f'male_casualsuit{i:02}' for i in range(1,7)]])],
     ('clothes', 'shoes01.mhclo', 'Clothes'),
     ('clothes', 'wdg_scruffy_beard.mhclo', 'Clothes'),
     ('clothes', 'spamrakuen_tbm_glasses_frames_01.mhclo', 'Clothes'),
@@ -70,7 +71,7 @@ for modifier in human.modifiers:
     if not group:
         continue
     hidden = {v.index for v in human.data.vertices if any(g.group == group.index and g.weight > .5 for g in v.groups)}
-    if any(n in modifier.vertex_group.lower() for n in ('male_elegantsuit', 'male_casualsuit')):
+    if any(n in modifier.vertex_group.lower() for n in ('male_elegantsuit', 'male_casualsuit','female_elegantsuit','female_casualsuit','female_sportsuit')):
         wardrobe_masks.append(hidden)
     elif 'shoes01' in modifier.vertex_group.lower():
         shoe_mask |= hidden
@@ -110,6 +111,16 @@ for obj in bpy.data.objects:
 for obj in bpy.data.objects:
     if obj.type != 'MESH':
         continue
+    if FEMALE and 'suit' in obj.name.lower():
+        # Shared skin coverage must support shirts and skirts. Add garment ease
+        # instead of deleting body areas needed by another wardrobe choice.
+        offsets=[vertex.normal.copy()*.006 for vertex in obj.data.vertices]
+        for vertex,offset in zip(obj.data.vertices,offsets):vertex.co += offset
+        if obj.data.shape_keys:
+            for key in obj.data.shape_keys.key_blocks:
+                for vertex,offset in zip(key.data,offsets):vertex.co += offset
+        obj.data.update()
+        print('GARMENT_EASE',obj.name,len(offsets),flush=True)
     if not obj.data.shape_keys:
         obj.shape_key_add(name='Basis')
     basis = obj.data.shape_keys.key_blocks[0]
@@ -126,11 +137,11 @@ for obj in bpy.data.objects:
                 co.z = head_z + (co.z - head_z) * (1 + weight * .09)
             dst.co = co
 
-out = ROOT / 'Downloads/CorporateHuman.glb'
+out = ROOT / f'Downloads/{MODEL}.glb'
 bpy.ops.object.select_all(action='SELECT')
 bpy.context.view_layer.objects.active = rig
 bpy.ops.export_scene.gltf(filepath=str(out), export_format='GLB', use_selection=True,
                          export_animations=False, export_morph=True, export_morph_normal=False,
                          export_morph_tangent=False, export_skins=True, export_yup=True)
 print('CORPORATE_HUMAN_EXPORTED', out, flush=True)
-bpy.ops.wm.save_as_mainfile(filepath=str(ROOT / 'Downloads/CorporateHuman.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=str(ROOT / f'Downloads/{MODEL}.blend'))

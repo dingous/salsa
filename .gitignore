@@ -36,3 +36,7 @@ vrm-*.log
 
 # Local fine-tuning outputs and private datasets
 /training/
+
+# Licensed SALSA plugin restored from the owner's Unity Asset Store cache.
+/CorporateUnity/Assets/Plugins/Crazy Minnow Studio/
+/CorporateUnity/Assets/Plugins/Crazy Minnow Studio.meta

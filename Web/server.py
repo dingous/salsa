@@ -326,7 +326,7 @@ def handler_for(bridge, port):
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Referrer-Policy', 'no-referrer')
-            self.send_header('Content-Security-Policy', f"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-{IMPORT_HASH}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob:; frame-ancestors 'none'")
+            self.send_header('Content-Security-Policy', f"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-{IMPORT_HASH}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob: data: https://*.avaturn.me https://*.avaturn.dev https://*.amazonaws.com https://*.cloudfront.net; frame-src https://*.avaturn.dev; frame-ancestors 'none'")
             self.end_headers()
             try:
                 self.wfile.write(body)
@@ -364,7 +364,7 @@ def handler_for(bridge, port):
                     self.reply(200, bridge.status() if path.endswith('status') else bridge.tracking_frame())
             else:
                 file = (ROOT / ('index.html' if path == '/' else path.lstrip('/'))).resolve()
-                if not file.is_relative_to(ROOT) or not file.is_file() or file.suffix not in ('.html', '.js', '.mjs', '.wasm', '.task', '.css', '.json', '.vrm', '.txt', '.md', '.png', '.jpg', '.svg'):
+                if not file.is_relative_to(ROOT) or not file.is_file() or file.suffix not in ('.html', '.js', '.mjs', '.wasm', '.task', '.css', '.json', '.vrm', '.glb', '.txt', '.md', '.png', '.jpg', '.svg'):
                     self.reply(404, {'error': 'Arquivo não encontrado.'})
                     return
                 mime = 'text/javascript' if file.suffix in ('.js','.mjs') else 'application/wasm' if file.suffix=='.wasm' else mimetypes.guess_type(file.name)[0] or 'application/octet-stream'

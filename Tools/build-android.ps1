@@ -1,5 +1,7 @@
 $ErrorActionPreference='Stop'
 $dingousRoot=Split-Path $PSScriptRoot -Parent
+& (Join-Path $dingousRoot 'Tracker/.venv/Scripts/python.exe') (Join-Path $PSScriptRoot 'install_salsa.py')
+if($LASTEXITCODE -ne 0){throw 'SALSA runtime não instalado.'}
 & (Join-Path $PSScriptRoot 'setup-android-models.ps1')
 $dingousUnity='C:\Program Files\Unity\Hub\Editor\6000.4.5f1\Editor\Unity.exe'
 $dingousLog=Join-Path $dingousRoot 'Validation/android-build.log'

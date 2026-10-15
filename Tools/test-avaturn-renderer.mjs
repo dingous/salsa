@@ -1,0 +1,16 @@
+import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
+globalThis.self=globalThis;
+globalThis.createImageBitmap=async()=>({width:1024,height:1024,close(){}});
+const THREE=await import('../Web/vendor/three/package/build/three.module.js');
+const {GLTFLoader}=await import('../Web/vendor/three/package/examples/jsm/loaders/GLTFLoader.js');
+const {VRMLoaderPlugin}=await import('../Web/vendor/three-vrm/package/lib/three-vrm.module.js');
+const {AvatarRig}=await import('../Web/rig.js');
+const {runMotionChecks}=await import('../Web/motion-cases.js');
+const {convertAvaturnGlb}=await import('../Web/avaturn-glb.js');
+const source=await fs.readFile(new URL('../Web/assets/AvaturnBase.glb',import.meta.url));
+const converted=convertAvaturnGlb(source),loader=new GLTFLoader();loader.register(p=>new VRMLoaderPlugin(p));
+const gltf=await loader.parseAsync(converted.buffer,''),vrm=gltf.userData.vrm;
+assert.ok(vrm);assert.equal(vrm.meta.name,'Avaturn · Meu avatar');assert.equal(converted.expressions,0);
+const checks=runMotionChecks(new AvatarRig(vrm),THREE,{facial:false});
+assert.ok(checks.length>=38);console.log(JSON.stringify({passed:true,bodyMotionChecks:checks.length,facial:'not supported by official T1 reference',textures:'stubbed; visual browser check still required'}));

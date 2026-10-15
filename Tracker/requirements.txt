@@ -8,3 +8,4 @@ pyvirtualcam==0.14.0
 faster-whisper==1.2.1
 sounddevice==0.5.6
 av==15.1.0
+tzdata==2026.5

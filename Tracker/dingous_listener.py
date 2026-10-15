@@ -2,7 +2,7 @@
 import argparse,json,queue,time,re,unicodedata,subprocess,socket
 from pathlib import Path
 import numpy as np
-from dingous_partner import answer
+from dingous_partner import answer,ROOT
 from local_ai import ensure_local_ai
 from partner_settings import load as load_settings,speak as speak_reply
 from companion_events import greeting,daily_query
@@ -38,15 +38,20 @@ def listen():
   while not args.seconds or time.monotonic()-start<args.seconds:
    if time.monotonic()>=next_policy and not speech:
     next_policy=time.monotonic()+30;event=None
+    music_event=None
     try:
      settings=load_settings();event=daily_query(settings,last_briefing)
+     if not event:
+      from music_agent import daily_response
+      music_event=daily_response(settings,ROOT)
     except Exception as error:print('VOICE_ERROR|Não foi possível atualizar a configuração administrativa: '+str(error),flush=True)
-    if event:
-     last_briefing,briefing_question=event;stream.stop()
+    if event or music_event:
+     if event:last_briefing,briefing_question=event
+     stream.stop()
      try:
-      result=answer(briefing_question);path=Path(args.output);path.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');print('ANSWER|'+str(path),flush=True)
+      result=music_event or answer(briefing_question);path=Path(args.output);path.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');print('ANSWER|'+str(path),flush=True)
       if result.get('speechAllowed',False):
-       speechPath=path.with_suffix('.txt');speechPath.write_text(result['answer'],encoding='utf-8');speak_reply(speechPath,load_settings())
+       speechPath=path.with_suffix('.txt');speechPath.write_text(result.get('speechText',result['answer']),encoding='utf-8');speak_reply(speechPath,load_settings())
      except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
      finally:
       while not packets.empty():packets.get_nowait()
@@ -68,12 +73,14 @@ def listen():
     if command is not None and not command:activeUntil=time.monotonic()+8;print('WAKE|Dingous ativado. Faça sua pergunta.',flush=True);continue
     question=command if command is not None else text
     if not question:continue
-    activeUntil=0;print('QUESTION|'+question,flush=True);print('LISTEN|Microfone pausado enquanto Dingous responde',flush=True);settings=load_settings()
-    if settings['backend']=='ollama':ensure_local_ai()
+    activeUntil=0;print('LISTEN|Microfone pausado enquanto Dingous responde',flush=True);settings=load_settings()
+    from music_agent import matches as music_matches
+    if settings['backend']=='ollama' and not music_matches(question,settings):ensure_local_ai()
     result=answer(question)
     path=Path(args.output);path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8');print('ANSWER|'+str(path),flush=True)
-    speechPath=path.with_suffix('.txt');speechPath.write_text(result['answer'],encoding='utf-8')
-    speak_reply(speechPath,settings)
+    if result.get('speechAllowed',False):
+     speechPath=path.with_suffix('.txt');speechPath.write_text(result.get('speechText',result['answer']),encoding='utf-8')
+     speak_reply(speechPath,settings)
    except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
    finally:
     while not packets.empty():packets.get_nowait()

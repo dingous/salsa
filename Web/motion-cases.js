@@ -13,7 +13,7 @@ export function poseFrame(action='neutral') {
   return {face:true,pose:true,points,imagePose,rotation:[1,0,0,0,1,0,0,0,1],shapes:[],leftHand:[],rightHand:[]};
 }
 
-export function runMotionChecks(rig,THREE) {
+export function runMotionChecks(rig,THREE,{facial=true}={}) {
   const results=[],check=(name,condition)=>{results.push({name,pass:!!condition});if(!condition)throw new Error(name);};
   const settle=frame=>{for(let i=0;i<150;i++)rig.update(frame?{...frame,points:frame.points.map(p=>({...p}))}:null,1/30);rig.vrm.scene.updateMatrixWorld(true);};
   const direction=(a,b)=>rig.bones.get(b).getWorldPosition(new THREE.Vector3()).sub(rig.bones.get(a).getWorldPosition(new THREE.Vector3())).normalize();
@@ -49,7 +49,7 @@ export function runMotionChecks(rig,THREE) {
     const gestures=poseFrame();gestures.shapes=[{name:'eyeBlinkLeft',value:1},{name:'jawOpen',value:1}];
     gestures.leftHand=Array.from({length:21},(_,i)=>({x:i===0?0:((i-1)%4+1)*.025,y:i===0?0:(Math.floor((i-1)/4)-2)*.018,z:0,confidence:1}));
     settle(gestures);
-    if(rig.vrm.expressionManager){
+    if(rig.vrm.expressionManager&&facial){
       const custom=!!rig.vrm.expressionManager.getExpression('jawOpen'),left=custom?'eyeBlinkLeft':'blinkLeft',right=custom?'eyeBlinkRight':'blinkRight';
       check(label+': pisca o olho correspondente',rig.vrm.expressionManager.getValue(mirror?right:left)>.9&&rig.vrm.expressionManager.getValue(mirror?left:right)<.1);
       check(label+': abertura da boca preservada',rig.vrm.expressionManager.getValue(custom?'jawOpen':'aa')>.9);

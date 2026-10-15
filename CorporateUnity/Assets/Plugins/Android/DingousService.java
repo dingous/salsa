@@ -27,9 +27,15 @@ public class DingousService extends Service {
  public void onCreate(){super.onCreate();instance=this;running=true;
   getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("dingous", "Dingous · microfone e câmera",NotificationManager.IMPORTANCE_LOW));
   tts=new TextToSpeech(this,result->{if(result!=TextToSpeech.SUCCESS){setStatus("Voz Android indisponível");return;}Voice selected=null;for(Voice v:tts.getVoices())if(v.getLocale().getLanguage().equals("pt")&&!v.isNetworkConnectionRequired()&&!v.getFeatures().contains("notInstalled")){if(selected==null||v.getLocale().getCountry().equals("BR"))selected=v;}
-   if(selected==null){setStatus("Instale uma voz pt-BR local no Android");return;}tts.setVoice(selected);tts.setSpeechRate(.92f);tts.setPitch(.98f);ttsReady=true;setStatus("Voz local disponível");
+   if(selected==null){setStatus("Instale uma voz pt-BR local no Android");return;}tts.setVoice(selected);tts.setSpeechRate(.92f);tts.setPitch(.98f);ttsReady=true;applyVoicePreference();setStatus("Voz local disponível");
    tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){public void onStart(String id){setStatus("Voz local reproduzindo");}public void onDone(String id){setStatus("Voz concluída · escuta retomada");}public void onError(String id){setStatus("Falha na voz local; verifique os dados instalados");}});
   });
+ }
+ public void applyVoicePreference(){
+  if(!ttsReady||tts==null||tts.getVoices()==null)return;
+  String saved=getSharedPreferences("dingous",0).getString("ttsVoice","");Voice fallback=null;
+  for(Voice v:tts.getVoices())if(!v.isNetworkConnectionRequired()&&(v.getFeatures()==null||!v.getFeatures().contains("notInstalled"))){if(v.getName().equals(saved)){tts.setVoice(v);return;}if(v.getLocale().getLanguage().equals("pt")&&(fallback==null||v.getLocale().getCountry().equals("BR")))fallback=v;}
+  if(fallback!=null)tts.setVoice(fallback);
  }
  public int onStartCommand(Intent intent,int flags,int startId){
   if(intent!=null&&"stop".equals(intent.getAction())){stopSelf();return START_NOT_STICKY;}

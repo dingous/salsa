@@ -23,6 +23,7 @@ namespace WebcamAvatar
         }
         public void SetListening(bool enabled){Listening=enabled;if(enabled)Tracking=true;Apply();}
         public void SetTracking(bool enabled){Tracking=enabled;Apply();if(!enabled)tracking.ClearSource();}
+        public void ChooseVoice(){using(var activity=Activity)Call("chooseVoice",activity);}
         public void Ask(string question){
             if(string.IsNullOrWhiteSpace(question))return;
             if(!string.IsNullOrEmpty(pendingQuestion)){studio.SetStatus("Aguarde o envio da pergunta pendente.",true);return;}

@@ -9,6 +9,7 @@ namespace WebcamAvatar
 {
     public sealed class LocalJob : IDisposable
     {
+        public static string SpeechRoot=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Dingous","Partner","UnitySpeech");
         public Process Process { get; private set; }
         public readonly ConcurrentQueue<string> Output = new ConcurrentQueue<string>();
         readonly StringBuilder errors = new StringBuilder();
@@ -39,6 +40,7 @@ namespace WebcamAvatar
                 StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8
             }};
             Process.StartInfo.EnvironmentVariables["PYTHONIOENCODING"]="utf-8";
+            if(script=="dingous_partner.py"||script=="dingous_listener.py"||script=="tts_preferences.py")Process.StartInfo.EnvironmentVariables["DINGOUS_UNITY_SPEECH_ROOT"]=SpeechRoot;
             Process.OutputDataReceived+=(sender,e)=> {if(e.Data!=null) Output.Enqueue(e.Data);};
             Process.ErrorDataReceived+=(sender,e)=> {if(e.Data!=null) lock(errors) { if(errors.Length>24000) errors.Clear(); errors.AppendLine(e.Data); }};
             Process.Start(); Process.BeginOutputReadLine(); Process.BeginErrorReadLine();
@@ -108,12 +110,13 @@ namespace WebcamAvatar
         [DllImport("comdlg32.dll",CharSet=CharSet.Unicode,SetLastError=true)]
         static extern bool GetOpenFileName([In,Out] OpenFileName value);
         [DllImport("user32.dll")] static extern IntPtr GetActiveWindow();
-        public static string Pick(bool vrm=false)
+        public static string Pick(bool vrm=false,bool glb=false)
         {
             if(UnityEngine.Application.platform!=UnityEngine.RuntimePlatform.WindowsEditor && UnityEngine.Application.platform!=UnityEngine.RuntimePlatform.WindowsPlayer)
                 throw new PlatformNotSupportedException("O seletor de fotos desta versão funciona no Windows.");
             var dialog=new OpenFileName {owner=GetActiveWindow()};
             if(vrm){dialog.filter="Avatar VRM\0*.vrm\0\0";dialog.title="Escolha seu avatar VRM";}
+            if(glb){dialog.filter="Avatar Avaturn GLB ou VRM\0*.glb;*.vrm\0\0";dialog.title="Escolha seu avatar Avaturn";}
             return GetOpenFileName(dialog) ? dialog.file.ToString() : null;
         }
     }

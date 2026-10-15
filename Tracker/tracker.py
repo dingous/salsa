@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 import mediapipe as mp
 import numpy as np
-from hand_assignment import anatomical_hand
+from hand_assignment import assign_hands,hands_together
 
 MODELS = {
     'face': 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
@@ -100,9 +100,11 @@ def main():
                                         for j, v in enumerate(p.pose_world_landmarks[0])]
                     packet['imagePose'] = [dict(x=float(v.x), y=float(v.y), z=float(v.z), confidence=float(v.visibility) if 0 <= v.x <= 1 and 0 <= v.y <= 1 else 0.0) for v in p.pose_landmarks[0]]
                 if hand_result:
+                    packet['handsTogether']=hands_together(hand_result.hand_landmarks)
+                    assigned=assign_hands([h[0].category_name for h in hand_result.handedness], [h[0] for h in hand_result.hand_landmarks],p.pose_landmarks[0] if p.pose_landmarks else None)
                     for i, points in enumerate(hand_result.hand_world_landmarks):
                         category = hand_result.handedness[i][0]
-                        side = anatomical_hand(category.category_name, hand_result.hand_landmarks[i][0], p.pose_landmarks[0] if p.pose_landmarks else None)
+                        side = assigned[i]
                         normalized = hand_result.hand_landmarks[i]
                         packet[side] = [dict(x=float(v.x), y=float(v.y), z=float(v.z),
                                              confidence=float(category.score) if 0 <= normalized[j].x <= 1 and 0 <= normalized[j].y <= 1 else 0.0)

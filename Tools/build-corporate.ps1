@@ -1,5 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
+& (Join-Path $taskRoot 'Tracker/.venv/Scripts/python.exe') (Join-Path $PSScriptRoot 'install_salsa.py')
+if($LASTEXITCODE -ne 0){throw 'SALSA runtime não instalado.'}
 $taskUnity = 'C:\Program Files\Unity\Hub\Editor\6000.4.5f1\Editor\Unity.exe'
 if (-not (Test-Path -LiteralPath $taskUnity)) { throw 'Instale Unity 6000.4.5f1 com Windows Build Support.' }
 $taskProcess = Start-Process -FilePath $taskUnity -ArgumentList @('-batchmode','-quit','-projectPath',('"'+(Join-Path $taskRoot 'CorporateUnity')+'"'),'-executeMethod','WebcamAvatar.Editor.CorporateBuild.Windows','-logFile',('"'+(Join-Path $taskRoot 'corporate-build.log')+'"')) -WindowStyle Hidden -PassThru

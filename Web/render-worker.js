@@ -41,6 +41,7 @@ async function load(source) {
     if(!candidate)throw new Error('O arquivo precisa conter um avatar VRM 0.x ou 1.0.');
     if(current!==version){VRMUtils.deepDispose(candidate.scene);return;}
     VRMUtils.rotateVRM0(candidate);
+    if(candidate.meta?.name?.startsWith('Avaturn'))candidate.scene.traverse(node=>{if(node.isMesh)for(const material of Array.isArray(node.material)?node.material:[node.material])if(/avaturn_(body|look)/i.test(material?.name||'')){material.metalness=0;material.metalnessMap=null;material.roughness=Math.max(.7,material.roughness||0);material.needsUpdate=true;}});
     // Seed-san includes a separate decorative robot arm, unrelated to the human rig.
     if(typeof source==='string'&&source.endsWith('/Seed-san.vrm'))candidate.scene.traverse(node=>{
       const association=gltf.parser.associations.get(node),original=gltf.parser.json.nodes?.[association?.nodes];
@@ -53,7 +54,9 @@ async function load(source) {
     humanAppearance=new HumanAppearance(vrm);humanAppearance.apply(humanSettings);
     originalMaterials.clear();vrm.scene.traverse(node=>{if(node.isMesh)for(const material of Array.isArray(node.material)?node.material:[node.material])if(material?.color&&!originalMaterials.has(material))originalMaterials.set(material,material.color.clone());});applyAppearance();
     rig=new AvatarRig(vrm);rig.setMirror(mirrored);rig.expressionScale=presentationMode==='corporate'?.75:1;framing();
-    message('loaded',{makehuman:humanAppearance.available,name:vrm.meta?.name||vrm.meta?.title||'Meu avatar VRM',authors:vrm.meta?.authors?.join(', ')||vrm.meta?.author||'Autor informado no arquivo',expressions:vrm.expressionManager?.expressions.length||0});
+    const bindings=gltf.parser.json.extensions?.VRMC_vrm?.expressions;
+    const facialBindings=Object.values({...bindings?.preset,...bindings?.custom}).some(e=>e.morphTargetBinds?.length>0);
+    message('loaded',{framework:gltf.parser.json.asset?.extras?.dingousFramework,makehuman:humanAppearance.available&&gltf.parser.json.asset?.extras?.dingousFramework!=='metahuman',name:vrm.meta?.name||vrm.meta?.title||'Meu avatar VRM',authors:vrm.meta?.authors?.join(', ')||vrm.meta?.author||'Autor informado no arquivo',expressions:vrm.expressionManager?.expressions.length||0,facialBindings});
   }catch(error){if(candidate&&candidate!==vrm)VRMUtils.deepDispose(candidate.scene);message('error',{error:error.message});}
 }
 async function poll() {

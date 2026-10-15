@@ -69,9 +69,9 @@ namespace WebcamAvatar
                 else if(r.name=="CORPORATE") {Place(r,margin,20,narrow?170:230,34);r.GetComponent<Text>().fontSize=narrow?22:25;}
                 else if(r.name=="AVATAR STUDIO · UNITY")Place(r,margin,56,230,20);
                 else if(r.name=="Local badge") {r.gameObject.SetActive(width>=600);Place(r,width-margin-104,24,104,30);}
-                else if(r.name=="Criar avatar" || r.name=="Aparência" || r.name=="Transmissão" || r.name=="Modelo VRM") {
-                    int i=r.name=="Criar avatar"?0:r.name=="Aparência"?1:r.name=="Transmissão"?2:3;
-                    float navWidth=narrow?(inner-24)/4:124;Place(r,narrow?margin+i*(navWidth+8):margin+260+i*132,narrow?94:24,navWidth,48);FitLabel(r);
+                else if(r.name=="Criar avatar" || r.name=="Aparência" || r.name=="Transmissão" || r.name=="Modelo VRM" || r.name=="Avatares") {
+                    int i=r.name=="Criar avatar"?0:r.name=="Aparência"?1:r.name=="Transmissão"?2:r.name=="Modelo VRM"?3:4;
+                    float navWidth=narrow?(inner-32)/5:124;Place(r,narrow?margin+i*(navWidth+8):margin+260+i*132,narrow?94:24,navWidth,48);FitLabel(r);
                     r.GetComponentInChildren<Text>().fontSize=width<600?12:14;
                 }
                 else if(r.GetComponent<Dropdown>()!=null)Place(r,narrow?width-margin-190:width-margin-220, narrow?20:82,narrow?190:220,40);
@@ -127,7 +127,9 @@ namespace WebcamAvatar
         }
         public void LayoutAdvanced() {
             if(content==null)return;
-            var panel=(content.Find("Ajustes avançados")??content.Find("Laboratório Dingous")??content.Find("Parceiro Dingous")) as RectTransform;if(panel==null)return;
+            RectTransform panel=null;
+            foreach(Transform child in content)if(child.gameObject.activeSelf&&(child.name=="Framework de avatar"||child.name=="Presets de avatares"||child.name=="Ajustes avançados"||child.name=="Laboratório Dingous"||child.name=="Parceiro Dingous"))panel=child as RectTransform;
+            if(panel==null)return;
             var page=nodes.Find(r=>r.name=="Página 0");panel.localScale=page.localScale;Place(panel,page.anchoredPosition.x,-page.anchoredPosition.y,370,558);panel.SetAsLastSibling();
         }
     }

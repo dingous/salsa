@@ -8,7 +8,7 @@ Add-Type -AssemblyName System.Speech
 $dingousVoice=New-Object System.Speech.Synthesis.SpeechSynthesizer
 try {
  $dingousPortuguese=@($dingousVoice.GetInstalledVoices() | Where-Object {$_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'pt-BR'})
- $dingousSelected=$dingousPortuguese | Where-Object {$_.VoiceInfo.Name -eq $VoiceName} | Select-Object -First 1
+ $dingousSelected=$dingousVoice.GetInstalledVoices() | Where-Object {$_.Enabled -and $_.VoiceInfo.Name -eq $VoiceName} | Select-Object -First 1
  if(!$dingousSelected){$dingousSelected=$dingousPortuguese | Select-Object -First 1}
  if(!$dingousSelected){throw 'Instale uma voz local em português do Brasil nas configurações de fala do Windows.'}
  $dingousVoice.SelectVoice($dingousSelected.VoiceInfo.Name)

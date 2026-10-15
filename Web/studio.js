@@ -1,16 +1,20 @@
+import {prepareMetaHumanVrm} from './metahuman-vrm.js';
+import {validatePresets,presetState} from './avatar-presets.js';
+import {initTtsVoices} from './tts-voices.js';
 import {BrowserTracker} from './browser-tracker.js';
 import {readAppearance,writeAppearance,sanitizeAppearance,loadGuestModel,saveGuestModel,clearGuestModel} from './appearance-storage.js';
 const hosted=!['127.0.0.1','localhost'].includes(location.hostname)||new URLSearchParams(location.search).get('mode')==='browser';
 const $=id=>document.getElementById(id),status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
+const deviceTts=initTtsVoices($('ttsVoice'),$('ttsPreview'),$('ttsVoiceStatus'));
 const browserTracker=new BrowserTracker(frame=>{worker?.postMessage({type:'trackingFrame',frame});},error=>{tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=$('poseQuality').disabled=false;status(error,true);},text=>status(text));
 const client=crypto.randomUUID();
 let token='',tracking=false,virtual=false,cameraSession=null,detected={face:false,pose:false,hands:0},worker,ready=false,epoch=0,pending=false,latest=null,reconnecting=null,bridgeWasOffline=false;
-let appearance=readAppearance(),pendingModel=null;
+let appearance=readAppearance(),pendingModel=null,activeFramework='makehuman';
 let builtin='makehuman',humanSettings={style:'realistic',hairStyle:0,beard:false,glasses:false};
-try{builtin=document.cookie.split(';').map(x=>x.trim()).find(x=>x==='avatar_builtin_v1=seed')?'seed':'makehuman';const item=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('avatar_makehuman_v1='));if(item){const data=JSON.parse(decodeURIComponent(item.slice('avatar_makehuman_v1='.length)))||{};humanSettings={style:data.style==='stylized'?'stylized':'realistic',hairStyle:[0,1,2,3].includes(data.hairStyle)?data.hairStyle:0,beard:data.beard===true,glasses:data.glasses===true};}}catch{}
-const builtinSource=()=>new URL('assets/'+(builtin==='seed'?'Seed-san':'CorporateHuman')+'.vrm',location.href).href;
+try{builtin=document.cookie.split(';').map(x=>x.trim()).find(x=>x==='avatar_builtin_v1=woman')?'woman':document.cookie.split(';').map(x=>x.trim()).find(x=>x==='avatar_builtin_v1=seed')?'seed':'makehuman';const item=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('avatar_makehuman_v1='));if(item){const data=JSON.parse(decodeURIComponent(item.slice('avatar_makehuman_v1='.length)))||{};humanSettings={...data,style:data.style==='stylized'?'stylized':'realistic',hairStyle:[0,1,2,3].includes(data.hairStyle)?data.hairStyle:0,beard:data.beard===true,glasses:data.glasses===true};}}catch{}
+const builtinSource=()=>new URL('assets/'+(builtin==='seed'?'Seed-san':builtin==='woman'?'CorporateWoman':'CorporateHuman')+'.vrm',location.href).href;
 function rememberHuman(){const path=location.pathname.startsWith('/Games/Avatar')?'/Games/Avatar/':'/';const flags=`; Max-Age=15552000; Path=${path}; SameSite=Lax${location.protocol==='https:'?'; Secure':''}`;document.cookie='avatar_builtin_v1='+builtin+flags;document.cookie='avatar_makehuman_v1='+encodeURIComponent(JSON.stringify(humanSettings))+flags;}
-function loadBuiltin(){builtin=$('builtinModel').value==='seed'?'seed':'makehuman';pendingModel={builtin:true};rememberHuman();status('Carregando '+(builtin==='seed'?'Seed-san':'MakeHuman / MPFB')+'…');worker?.postMessage({type:'load',source:builtinSource()});}
+function loadBuiltin(){builtin=['seed','woman'].includes($('builtinModel').value)?$('builtinModel').value:'makehuman';pendingModel={builtin:true};rememberHuman();status('Carregando '+(builtin==='seed'?'Seed-san':'MakeHuman / MPFB')+'…');worker?.postMessage({type:'load',source:builtinSource()});}
 if(!appearance){let previous;try{previous=localStorage.getItem('avatarPresentation');}catch{}appearance=sanitizeAppearance({presentation:previous});}
 function savePreferences(){
   appearance=sanitizeAppearance({...appearance,presentation:$('presentation').value,background:$('background').value,framing:$('framing').value,mirror:$('mirror').checked,poseQuality:$('poseQuality').value});
@@ -75,10 +79,10 @@ async function operation(path,body,message) {
     status(message);
   }catch(error){status(error.message,true);}finally{pending=false;epoch++;if(latest)applyState(latest);}
 }
-$('modelFile').addEventListener('change',async event=>{const file=event.target.files[0];if(!file||!worker)return;if(file.size>150*1024*1024){status('O avatar deve ter até 150 MB.',true);return;}const source=await file.arrayBuffer();pendingModel={file};status('Carregando seu modelo VRM…');worker.postMessage({type:'load',source},[source]);event.target.value='';});
+$('modelFile').addEventListener('change',async event=>{const file=event.target.files[0];if(!file||!worker)return;if(file.size>150*1024*1024){status('O avatar deve ter até 150 MB.',true);return;}const source=await file.arrayBuffer();pendingModel={file};delete humanSettings.presetId;rememberHuman();status('Carregando seu modelo VRM…');worker.postMessage({type:'load',source},[source]);event.target.value='';});
 $('defaultModel').onclick=loadBuiltin;
-$('builtinModel').value=builtin;$('builtinModel').onchange=loadBuiltin;
-for(const id of ['humanStyle','humanHair','humanBeard','humanGlasses'])$(id).onchange=()=>{humanSettings={style:$('humanStyle').value,hairStyle:Number($('humanHair').value),beard:$('humanBeard').checked,glasses:$('humanGlasses').checked};rememberHuman();send('humanAppearance',humanSettings);};
+$('builtinModel').value=builtin;$('builtinModel').onchange=()=>{delete humanSettings.presetId;loadBuiltin();};
+for(const id of ['humanStyle','humanHair','humanBeard','humanGlasses'])$(id).onchange=()=>{humanSettings={...humanSettings,style:$('humanStyle').value,hairStyle:Number($('humanHair').value),beard:$('humanBeard').checked,glasses:$('humanGlasses').checked};rememberHuman();send('humanAppearance',humanSettings);};
 $('humanStyle').value=humanSettings.style;$('humanHair').value=humanSettings.hairStyle;$('humanBeard').checked=humanSettings.beard===true;$('humanGlasses').checked=humanSettings.glasses===true;
 $('framing').onchange=()=>{send('framing',$('framing').value);savePreferences();};$('background').onchange=()=>{send('background',$('background').value);savePreferences();};$('demo').onchange=()=>send('demo',$('demo').checked);
 $('calibrate').onclick=()=>{if(!tracking){status('Inicie o rastreamento antes de calibrar.');return;}send('calibrate');status('Posição neutra calibrada.');};
@@ -108,7 +112,7 @@ async function initialize() {
     worker=new Worker('render-worker.js',{type:'module'});
     worker.onerror=event=>{ready=false;virtual=false;send('virtual',false);if(!hosted){$('virtual').disabled=true;api('camera/stop',{}).catch(()=>{});}else browserTracker.stop();status('Erro na renderização: '+(event.message||'Não foi possível carregar o renderer.'),true);};
     worker.onmessage=({data})=>{
-      if(data.type==='loaded'){ready=true;$('modelName').textContent=data.makehuman?'MakeHuman / MPFB · '+data.name:data.name;for(const id of ['humanStyle','humanHair','humanBeard','humanGlasses'])$(id).disabled=!data.makehuman;$('rigInfo').textContent=`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status(hosted?'Avatar carregado. Inicie o rastreamento pela webcam.':'Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');if(pendingModel){const selected=pendingModel;pendingModel=null;(selected.builtin?clearGuestModel():saveGuestModel(selected.file)).then(()=>status(selected.builtin?'Modelo padrão selecionado.':'Avatar importado salvo neste navegador para a próxima visita.')).catch(()=>status('Avatar carregado, mas o navegador não conseguiu guardá-lo para a próxima visita.',true));}}
+      if(data.type==='loaded'){ready=true;activeFramework=data.framework==='metahuman'?'metahuman':data.name?.startsWith('Avaturn')?'avaturn':data.makehuman?'makehuman':'seed';$('avatarFramework').value=activeFramework;if(activeFramework==='metahuman')$('metahumanState').textContent=data.facialBindings?'MetaHuman preparado carregado. Mesmo rig nos modos Webcam e Agente.':'MetaHuman preparado carregado: corpo e mãos. Não há blendshapes faciais vinculados.';if(data.name?.startsWith('Avaturn'))$('avaturnState').textContent=data.facialBindings?`Avatar carregado · ${data.expressions} expressões. Mesmo rig nos modos Webcam e Agente.`:'Avatar carregado: corpo e mãos. Este modelo não possui expressões faciais.';if(avatarPresets.length)$('presetApply').disabled=false;$('modelName').textContent=data.makehuman?'MakeHuman / MPFB · '+data.name:data.name;for(const id of ['humanStyle','humanHair','humanBeard','humanGlasses'])$(id).disabled=!data.makehuman;$('rigInfo').textContent=data.name?.startsWith('Avaturn')&&!data.facialBindings?'Rig de corpo e mãos · rosto estático T1':`VRM · ${data.expressions} expressões · rig humanoide`;document.querySelector('.credit').textContent=`${data.name} · ${data.authors}`;if(latest)applyState(latest);status(hosted?'Avatar carregado. Inicie o rastreamento pela webcam.':'Avatar carregado. Inicie o rastreamento e depois ative a câmera virtual.');if(pendingModel){const selected=pendingModel;pendingModel=null;(selected.builtin?clearGuestModel():saveGuestModel(selected.file)).then(()=>status(selected.builtin?'Modelo padrão selecionado.':'Avatar importado salvo neste navegador para a próxima visita.')).catch(()=>status('Avatar carregado, mas o navegador não conseguiu guardá-lo para a próxima visita.',true));}}
       else if(data.type==='tracking'){detected=data;if(hosted)$('trackingState').textContent=tracking?`${data.face?'Rosto detectado':'Sem rosto'} · ${data.pose?'Corpo detectado':'Corpo fora do quadro'} · ${data.hands} mãos`:'Webcam desligada';}
       else if(data.type==='cameraError'){virtual=false;send('virtual',false);operation('camera/stop',{},data.error);}
       else if(data.type==='renderError'){ready=false;if(!hosted){$('virtual').disabled=true;operation('camera/stop',{},'Renderização interrompida: '+data.error);}else{browserTracker.stop();status('Renderização interrompida: '+data.error,true);}}
@@ -143,7 +147,7 @@ $('labGenerate').onclick=()=>generateLaboratory(false);$('labDemo').onclick=()=>
 
 let partnerResult=null,partnerBusy=false;
 $('runMode').onchange=()=>{const mode=$('runMode').value;$('partnerPanel').open=mode==='partner';if(mode==='partner'&&tracking){$('runMode').value='webcam';status('Pare a webcam antes de entrar no Modo Agente.',true);}else if(mode==='partner'){send('laboratory',[]);$('demo').checked=true;send('demo',true);}else{speechSynthesis.cancel();send('demo',false);}};
-$('partnerAsk').onclick=async()=>{if(partnerBusy)return;if($('runMode').value!=='partner'){status('Escolha o Modo Agente.',true);return;}partnerBusy=true;$('partnerAsk').disabled=true;$('partnerAnswer').textContent='Dingous está pensando localmente…';let resumeVoice=false;try{resumeVoice=$('voiceListen').checked;if(resumeVoice){clearInterval(voicePoll);await api('voice/stop',{});$('voiceListen').checked=false;}partnerResult=await api('partner/ask',{question:$('partnerQuestion').value});if($('runMode').value!=='partner')return;$('partnerAnswer').textContent=partnerResult.answer;$('partnerApprove').disabled=false;if(partnerResult.speechAllowed===false){speechSynthesis.cancel();document.getElementById('partnerAnswer').textContent+=' Privacidade ativa: resposta somente em texto.';if(resumeVoice){document.getElementById('voiceListen').checked=true;document.getElementById('voiceListen').onchange();}return;}const speech=new SpeechSynthesisUtterance(partnerResult.answer);speech.onend=()=>{if(resumeVoice&&$('runMode').value==='partner'){$('voiceListen').checked=true;$('voiceListen').onchange();}};speech.lang='pt-BR';const localVoices=speechSynthesis.getVoices().filter(v=>v.lang==='pt-BR'&&v.localService);const voiceSettings=partnerResult.voiceSettings||{voiceName:'Microsoft Daniel',voiceRate:-1,voiceVolume:85};speech.voice=localVoices.find(v=>v.name===voiceSettings.voiceName)||localVoices.find(v=>/Daniel/i.test(v.name))||localVoices[0]||null;speech.rate=Math.max(.7,Math.min(1.3,1+voiceSettings.voiceRate*.08));speech.volume=voiceSettings.voiceVolume/100;if(!speech.voice){$('partnerAnswer').textContent+=' Voz local pt-BR indisponível neste navegador.';return;}speechSynthesis.cancel();speechSynthesis.speak(speech);}catch(e){$('partnerAnswer').textContent=e.message;}finally{partnerBusy=false;$('partnerAsk').disabled=false;}};
+$('partnerAsk').onclick=async()=>{if(partnerBusy)return;if($('runMode').value!=='partner'){status('Escolha o Modo Agente.',true);return;}partnerBusy=true;$('partnerAsk').disabled=true;$('partnerAnswer').textContent='Dingous está pensando localmente…';let resumeVoice=false;try{resumeVoice=$('voiceListen').checked;if(resumeVoice){clearInterval(voicePoll);await api('voice/stop',{});$('voiceListen').checked=false;}partnerResult=await api('partner/ask',{question:$('partnerQuestion').value});if($('runMode').value!=='partner')return;$('partnerAnswer').textContent=partnerResult.answer;$('partnerApprove').disabled=false;if(partnerResult.speechAllowed===false){speechSynthesis.cancel();document.getElementById('partnerAnswer').textContent+=' Privacidade ativa: resposta somente em texto.';if(resumeVoice){document.getElementById('voiceListen').checked=true;document.getElementById('voiceListen').onchange();}return;}const speech=new SpeechSynthesisUtterance(partnerResult.answer);speech.onend=()=>{if(resumeVoice&&$('runMode').value==='partner'){$('voiceListen').checked=true;$('voiceListen').onchange();}};if(!deviceTts.configure(speech,partnerResult.voiceSettings||{})){if(resumeVoice&&$('runMode').value==='partner'){$('voiceListen').checked=true;$('voiceListen').onchange();}return;}speechSynthesis.cancel();speechSynthesis.speak(speech);}catch(e){$('partnerAnswer').textContent=e.message;}finally{partnerBusy=false;$('partnerAsk').disabled=false;}};
 $('partnerRemember').onclick=async()=>{try{await api('partner/remember',{text:$('partnerQuestion').value});$('partnerAnswer').textContent='Preferência salva na memória local.';}catch(e){$('partnerAnswer').textContent=e.message;}};
 $('partnerApprove').onclick=async()=>{if(partnerResult)try{await api('partner/approve',partnerResult);$('partnerAnswer').textContent='Exemplo aprovado para o conjunto de treinamento. Modelo ainda não treinado.';}catch(e){$('partnerAnswer').textContent=e.message;}};
 $('partnerStop').onclick=()=>speechSynthesis.cancel();
@@ -153,3 +157,72 @@ if(typeof speechSynthesis!=="undefined")speechSynthesis.getVoices();
 let voicePoll;
 $('voiceListen').onchange=async()=>{clearInterval(voicePoll);try{if($('voiceListen').checked&&$('runMode').value!=='partner')throw new Error('Escolha o Modo Agente primeiro.');const state=await api($('voiceListen').checked?'voice/start':'voice/stop',{});$('voiceStatus').textContent=state.status;if($('voiceListen').checked)voicePoll=setInterval(async()=>{try{const current=await api('voice/state',{});$('voiceStatus').textContent=current.status;if(current.answer){$('partnerAnswer').textContent=current.answer;partnerResult=current;$('partnerApprove').disabled=false;}if(!current.active){clearInterval(voicePoll);$('voiceListen').checked=false;}}catch(e){$('voiceStatus').textContent=e.message;}},1000);}catch(e){$('voiceListen').checked=false;$('voiceStatus').textContent=e.message;}};
 const previousModeChange=$('runMode').onchange;$('runMode').onchange=()=>{if($('runMode').value==='webcam'&&$('voiceListen').checked){$('voiceListen').checked=false;$('voiceListen').onchange();}previousModeChange();if($('runMode').value==='partner'&&!$('voiceListen').checked){$('voiceListen').checked=true;$('voiceListen').onchange();}};
+
+let avatarPresets=[];
+function refreshPresetOptions(){
+ const select=$('avatarPreset'),filter=$('presetCategory').value;select.replaceChildren();
+ for(const p of avatarPresets.filter(p=>!filter||p.category===filter))select.add(new Option(p.name+' · '+p.description,p.id));
+ if(Array.from(select.options).some(o=>o.value===humanSettings.presetId))select.value=humanSettings.presetId;
+ select.disabled=false;$('presetApply').disabled=!ready;describePreset();
+}
+function describePreset(){const p=avatarPresets.find(p=>p.id===$('avatarPreset').value);if(p)$('presetDescription').textContent=p.name+' · '+p.description;}
+$('presetCategory').onchange=refreshPresetOptions;$('avatarPreset').onchange=describePreset;
+$('presetApply').onclick=()=>{
+ if(!ready)return;const p=avatarPresets.find(p=>p.id===$('avatarPreset').value);if(!p)return;
+ const chosen=presetState(p,humanSettings.style);builtin=chosen.builtin;humanSettings=chosen.human;
+ appearance.colors=chosen.colors;for(const key of ['skin','hair','eyes','outfit'])$(key+'Color').value=appearance.colors[key];
+ $('builtinModel').value=builtin;$('humanHair').value=humanSettings.hairStyle;$('humanBeard').checked=humanSettings.beard;$('humanGlasses').checked=humanSettings.glasses;
+ rememberHuman();savePreferences();send('humanAppearance',humanSettings);send('appearance',appearance.colors);loadBuiltin();
+};
+fetch(new URL('assets/avatar-presets.json',location.href)).then(r=>{if(!r.ok)throw new Error('Catálogo indisponível.');return r.json();}).then(data=>{avatarPresets=validatePresets(data);refreshPresetOptions();}).catch(e=>{$('presetDescription').textContent=e.message;});
+
+let avaturnSdk=null,avaturnBlob=null,avaturnBusy=false,avaturnSession=0;
+function applyAvaturn(result){
+ if(!worker)throw new Error('Aguarde o carregamento do renderer.');
+ const stored=new File([result.buffer],'Avaturn.vrm',{type:'model/gltf-binary'});
+ pendingModel={file:stored};delete humanSettings.presetId;rememberHuman();appearance.colors={};for(const key of ['skin','hair','eyes','outfit'])$(key+'Color').value='';send('appearance',{});savePreferences();
+ avaturnBlob=stored;$('avaturnDownload').disabled=false;$('avatarFramework').value='avaturn';
+ $('avaturnState').textContent=result.expressions?'Carregando avatar com expressões…':'Carregando corpo e mãos. Este GLB não possui expressões faciais.';
+ worker.postMessage({type:'load',source:result.buffer},[result.buffer]);
+}
+$('avatarFramework').onchange=()=>{
+ const selected=$('avatarFramework').value;
+ if(selected==='metahuman'){$('avatarFramework').value=activeFramework;$('metahumanPanel').open=true;$('metahumanPanel').scrollIntoView({block:'nearest'});return;}
+ if(selected==='avaturn'){$('avatarFramework').value=activeFramework;$('avaturnPanel').open=true;$('avaturnPanel').scrollIntoView({block:'nearest'});return;}
+ if(selected==='fullbody'){status('Corporativo 2 · Real-Time Full Body Tracking: pacote do fornecedor ausente. O plugin Unity não é um avatar web.',true);$('avatarFramework').value=activeFramework;return;}
+ $('builtinModel').value=selected==='seed'?'seed':'makehuman';delete humanSettings.presetId;loadBuiltin();
+};
+$('avaturnFile').onchange=async event=>{
+ const file=event.target.files[0];event.target.value='';if(!file||avaturnBusy)return;avaturnBusy=true;
+ try{if(file.size>150*1024*1024)throw new Error('O avatar deve ter até 150 MB.');applyAvaturn(convertAvaturnGlb(await file.arrayBuffer()));}catch(e){$('avaturnState').textContent=e.message;}finally{avaturnBusy=false;}
+};
+$('avaturnDownload').onclick=()=>{if(!avaturnBlob)return;const url=URL.createObjectURL(avaturnBlob),a=document.createElement('a');a.href=url;a.download='Dingous-Avaturn.vrm';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('avaturnDemo').onclick=async()=>{if(avaturnBusy)return;avaturnBusy=true;try{const response=await fetch(new URL('assets/AvaturnBase.glb',location.href));if(!response.ok)throw new Error('Demonstração indisponível.');applyAvaturn(convertAvaturnGlb(await response.arrayBuffer()));}catch(e){$('avaturnState').textContent=e.message;}finally{avaturnBusy=false;}};
+function closeAvaturn(){avaturnSession++;avaturnSdk?.destroy();avaturnSdk=null;avaturnBusy=false;$('avaturnCreate').disabled=false;if($('avaturnDialog').open)$('avaturnDialog').close();}
+$('avaturnClose').onclick=closeAvaturn;
+$('avaturnDialog').addEventListener('cancel',closeAvaturn);
+$('avaturnCreate').onclick=async()=>{
+ if(avaturnBusy)return;const session=++avaturnSession;avaturnBusy=true;$('avaturnCreate').disabled=true;
+ try{
+  const url=avaturnProject($('avaturnProject').value.trim());
+  if(tracking){if(hosted){browserTracker.stop();tracking=false;$('track').textContent='Iniciar rastreamento';$('camera').disabled=$('poseQuality').disabled=false;}else await operation('tracking/stop',{},'Webcam liberada para o criador Avaturn.');}
+  if(tracking)throw new Error('Pare o rastreamento para liberar a webcam antes de abrir o criador.');
+  const {AvaturnSDK}=await import('./vendor/avaturn/index.js');if(session!==avaturnSession)return;avaturnSdk?.destroy();const sdk=new AvaturnSDK();avaturnSdk=sdk;$('avaturnContainer').replaceChildren();$('avaturnDialog').showModal();
+  await Promise.race([sdk.init($('avaturnContainer'),{url}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('O serviço não respondeu. Tente importar o GLB exportado.')),30000))]);
+  if(session!==avaturnSession)return;
+  sdk.on('export',async data=>{if(avaturnBusy||session!==avaturnSession)return;avaturnBusy=true;$('avaturnState').textContent='Recebendo avatar exportado…';try{const result=await readAvaturnExport(data);if(session!==avaturnSession)return;applyAvaturn(result);closeAvaturn();}catch(e){if(session===avaturnSession)$('avaturnState').textContent=e.message;}finally{if(session===avaturnSession)avaturnBusy=false;}});
+ }catch(e){if(session===avaturnSession){$('avaturnState').textContent='Não foi possível abrir Avaturn: '+e.message;closeAvaturn();}}
+ finally{if(session===avaturnSession){avaturnBusy=false;$('avaturnCreate').disabled=false;}}
+};
+import {avaturnProject,convertAvaturnGlb,readAvaturnExport} from './avaturn-glb.js';
+
+let metaHumanBusy=false;
+$('metahumanFile').onchange=async event=>{
+ const file=event.target.files[0];event.target.value='';if(!file||metaHumanBusy)return;metaHumanBusy=true;
+ try{
+  if(!worker)throw new Error('Aguarde o renderer.');if(file.size>150*1024*1024)throw new Error('O avatar deve ter até 150 MB.');
+  const result=prepareMetaHumanVrm(await file.arrayBuffer());pendingModel={file:new File([result.buffer],'MetaHuman.vrm',{type:'model/gltf-binary'})};
+  delete humanSettings.presetId;rememberHuman();appearance.colors={};for(const key of ['skin','hair','eyes','outfit'])$(key+'Color').value='';send('appearance',{});savePreferences();
+  $('metahumanState').textContent='Carregando MetaHuman preparado…';worker.postMessage({type:'load',source:result.buffer},[result.buffer]);
+ }catch(e){$('metahumanState').textContent=e.message;}finally{metaHumanBusy=false;}
+};

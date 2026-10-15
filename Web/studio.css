@@ -3,3 +3,10 @@
 .profile-note{font-size:12px;line-height:1.5;margin:10px 0 18px}body[data-presentation="corporate"]{--purple:#78b4cf;--panel:#172330;background:#0d1722}body[data-presentation="corporate"] .eyebrow{color:#90c8df}body[data-presentation="corporate"] button:not(.secondary),body[data-presentation="corporate"] .file-button{background:#8ec8de;color:#0b2230}body[data-presentation="corporate"] .controls,body[data-presentation="corporate"] .stage,body[data-presentation="corporate"] .call-controls{border-color:#304456}button:active{transform:translateY(1px)}
 
 .appearance{margin:18px 0;padding:12px;border:1px solid var(--line);border-radius:10px}.appearance summary{cursor:pointer;font-size:13px;color:#bec6dc}.appearance label{margin-top:12px}#preferencesState{margin:12px 0}
+:root #avaturnDialog{width:min(1100px,96vw);height:92dvh;max-height:96dvh;padding:0;border:1px solid #666;background:#171725;color:#eee;border-radius:16px;overflow:hidden}
+#avaturnDialog::backdrop{background:#000b}
+.avaturn-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;height:64px;box-sizing:border-box}
+.avaturn-toolbar button{width:auto;margin:0}
+#avaturnContainer{height:calc(100% - 64px);width:100%}
+#avaturnContainer iframe{width:100%;height:100%;border:0}
+#avaturnProject{width:100%;box-sizing:border-box;padding:10px;color:inherit;background:#242435;border:1px solid #555;border-radius:8px}
