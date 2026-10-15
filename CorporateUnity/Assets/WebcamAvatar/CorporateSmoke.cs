@@ -227,7 +227,9 @@ namespace WebcamAvatar
                     var response=(InputField)ui.GetType().GetField("partnerAnswer",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
                     Check((bool)ui.GetType().GetField("partnerSucceeded",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui)&&jobField.GetValue(ui)==null&&response.text!="Dingous está pensando…"&&response.text.Length>10,"Partner answer and speech process completed model "+mode);
                     string replyPath=(string)ui.GetType().GetField("partnerLast",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
-                    Check(response.text==JsonUtility.FromJson<PartnerContent>(File.ReadAllText(replyPath)).answer,"Full partner response displayed model "+mode);
+                    bool hasReply=!string.IsNullOrEmpty(replyPath)&&File.Exists(replyPath);
+                    Check(hasReply,"Partner response JSON exists model "+mode);
+                    if(hasReply)Check(response.text==JsonUtility.FromJson<PartnerContent>(File.ReadAllText(replyPath)).answer,"Full partner response displayed model "+mode);
                     if(SystemInfo.graphicsDeviceType!=UnityEngine.Rendering.GraphicsDeviceType.Null)yield return ui.StartCoroutine(ui.CaptureInterface(Path.Combine(Application.temporaryCachePath,"dingous-partner-"+mode+".png")));
                     Call(ui,"StopPartner");Call(ui,"ShowPage",3);
                 }
@@ -403,6 +405,9 @@ namespace WebcamAvatar
             ui.tracking.mirror=false;
             var jaw=ExpressionKey.CreateCustom("jawOpen");var blink=ExpressionKey.CreateCustom("eyeBlinkLeft");
             var body=new Point[33];for(int i=0;i<33;i++)body[i]=new Point{confidence=1};
+            // A valid nose is above the shoulders. Origin placed it at the waist,
+            // incorrectly activating face-contact correction when lowering an arm.
+            body[0]=P(0,-.8f);
             body[11]=P(.3f,-.55f);body[12]=P(-.3f,-.55f);body[13]=P(.58f,-.45f);body[14]=P(-.58f,-.45f);
             body[15]=P(.66f,-.70f);body[16]=P(-.66f,-.70f);body[23]=P(.15f,0);body[24]=P(-.15f,0);
             body[25]=P(.15f,.4f);body[26]=P(-.15f,.4f);body[27]=P(.15f,.78f);body[28]=P(-.15f,.78f);

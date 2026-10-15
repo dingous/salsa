@@ -21,12 +21,13 @@ namespace WebcamAvatar
             get
             {
                 var root=Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,"..","Tracker"));
-                if(!Directory.Exists(root)) root=Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,"..","..","Tracker"));
-                if(!Directory.Exists(root)) root=Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,"..","..","..","Tracker"));
-                if(!Directory.Exists(root)) throw new DirectoryNotFoundException("A pasta Tracker não foi encontrada. Use a distribuição completa do aplicativo.");
+                if(!ValidTracker(root)) root=Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,"..","..","Tracker"));
+                if(!ValidTracker(root)) root=Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,"..","..","..","Tracker"));
+                if(!ValidTracker(root)) throw new DirectoryNotFoundException("A pasta Tracker completa não foi encontrada. Use a distribuição completa do aplicativo.");
                 return root;
             }
         }
+        static bool ValidTracker(string path)=>File.Exists(Path.Combine(path,"tracker.py"))&&File.Exists(Path.Combine(path,"dingous_partner.py"))&&File.Exists(Path.Combine(path,".venv","Scripts","python.exe"));
         public LocalJob(string script,params string[] arguments)
         {
             if(UnityEngine.Application.platform==UnityEngine.RuntimePlatform.Android)throw new PlatformNotSupportedException("Esta função ainda requer a ponte Windows. Este APK oferece a prévia e edição dos avatares; IA, rastreamento e escuta Android ainda precisam de integração.");

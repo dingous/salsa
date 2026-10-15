@@ -39,7 +39,7 @@ namespace WebcamAvatar
             if(now>=nextBlink){blinkStarted=now;nextBlink=now+UnityEngine.Random.Range(2.8f,6f);}
             float blinkAge=now-blinkStarted;
             float blink=blinkAge<.28f?Mathf.Sin(Mathf.Clamp01(blinkAge/.28f)*Mathf.PI):0;
-            if(tracking.NativeSpeaking){yawnStarted=-20;nextYawn=now+UnityEngine.Random.Range(45f,80f);}
+            if(tracking.IsSpeaking){yawnStarted=-20;nextYawn=now+UnityEngine.Random.Range(45f,80f);}
             else if(now>=nextYawn){yawnStarted=now;nextYawn=now+UnityEngine.Random.Range(60f,110f);}
             float yawnAge=now-yawnStarted;
             float yawn=yawnAge<4.5f?Mathf.Pow(Mathf.Sin(Mathf.Clamp01(yawnAge/4.5f)*Mathf.PI),2):0;

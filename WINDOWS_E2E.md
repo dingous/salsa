@@ -138,3 +138,49 @@ APK recompilado; o metadata IL2CPP contém a integração MetaHuman. Não houve 
 Player Windows recompilado e pacote atualizado com SALSA LipSync Suite 2.5.6.150, restaurado do cache licenciado local. Teste dedicado de lip sync aprovado com 16 verificações, nos modelos reais Seed-san (Cartoon) e MakeHuman (Corporativo). Verificou áudio real sintetizado no Windows, reprodução por AudioSource no Unity, controles SALSA/QueueProcessor, boca quieta sem áudio, movimento durante fala, malha finita, fechamento e cancelamento. Também validou o percurso real do botão de prévia TTS até o SALSA e confirmação de término. Processo terminou com exit 0.
 
 97 testes Python aprovados. Evidências em `Validation/lipsync/salsa-e2e-final.log` e `Validation/lipsync/result.json`. Não houve teste de webcam/microfone real, Android ou web nesta alteração. Detalhes em `LIPSYNC_SALSA.md`.
+
+
+## E2E Windows completo — 15/10/2026, 02h45–03h19
+
+**Aprovação integral bloqueada pelo encerramento nativo na transmissão real.** Foram aprovados 13 casos funcionais, com 2014 verificações nas rodadas finais de cada caso. Também passaram 113 testes Python do Tracker e dois testes de catálogo/modelos. Builds sucessivos foram usados durante as correções; isso não representa execução de toda a matriz num único hash. O último build passou no estúdio gráfico completo e no startup do pacote principal.
+
+| Caso | Verificações | Saída | Log local |
+| --- | ---: | ---: | --- |
+| presets-only | 88 | 0 | `Validation\release-20261015-024854\presets-only.log` |
+| female-rig | 229 | 0 | `Validation\release-20261015-024854\female-rig.log` |
+| rig-parity | 459 | 0 | `Validation\release-20261015-024854\rig-parity.log` |
+| contacts-only | 26 | 0 | `Validation\release-20261015-024854\contacts-only.log` |
+| agent-isolation | 19 | 0 | `Validation\release-20261015-030253\agent-isolation.log` |
+| avaturn | 224 | 0 | `Validation\release-20261015-024854\avaturn.log` |
+| metahuman-fixture | 234 | 0 | `Validation\release-20261015-024854\metahuman-fixture.log` |
+| face-only | 9 | 0 | `Validation\release-20261015-030253\face-only.log` |
+| partner-only | 7 | 0 | `Validation\release-20261015-030253\partner-only.log` |
+| lab-only | 7 | 0 | `Validation\release-20261015-030614\lab-only.log` |
+| lipsync-only | 16 | 0 | `Validation\release-20261015-030614\lipsync-only.log` |
+| full-studio | 695 | 0 | `Validation\release-20261015-031137\full-studio.log` |
+| startup-only | 1 | 0 | `Validation\release-20261015-031802\startup-only.log` |
+
+### Correções e execução
+
+- SALSA controla a boca somente durante áudio: expressões por comando e bocejo idle deixam de ser apagados no silêncio. O sinal de fala interrompe o bocejo sem inventar movimento labial.
+- Busca do Tracker exige módulos essenciais e Python, evitando selecionar uma pasta antiga incompleta. A distribuição de teste inclui seu próprio Tracker, ambiente virtual e modelos.
+- O executor registra hash e modo gráfico; exige renderização nos casos que capturam imagens/áudio. Teste do Agente verifica existência da resposta antes de abri-la, evitando travamento por exceção.
+- A fixture do teste completo posicionava o nariz na cintura e acionava incorretamente contato facial ao baixar braços. A posição foi corrigida e a rodada completa repetida com sucesso; não foi alterado o limite de alcance para esconder a falha.
+- Conferidos visualmente: pergunta digitada e resposta local real, galeria/filtros, laboratório, logo na camiseta e layout estreito. O teste completo cobre roupas, fundo, foto de referência, materiais, 52 canais faciais e layouts de 390 a 2560 pixels. A personalização de roupas/logo foi exercitada no MakeHuman, não certifica cobertura em todos os modelos importados.
+- Whisper small reconheceu palavra de ativação/comando em WAV sintetizado localmente (`Validation/windows-full-e2e/asr.json`). Não é fala humana. Microfone: 16.000 amostras, RMS 0,00001465, sem áudio persistido.
+
+### Webcam física e OBS
+
+DirectShow confirmou `ACER HD User Facing` no índice 0 e `OBS Virtual Camera` no índice 1. O executor valida o nome antes de salvar qualquer evidência, para não confundir vídeo físico com saída virtual. Cada avatar entregou 541 quadros em 18 segundos de amostragem, cerca de 30,06 FPS no receptor, a 1280×720. Rastreamento físico produziu pacotes e a ponte TCP conectou. A segunda parte usa prévia animada para verificar continuidade da saída; não valida gestos reais. Somente a imagem renderizada do avatar foi salva.
+
+Ambos os logs terminaram com `CORPORATE_LIVE_RESULT=True`, mas os processos retornaram falha. Eventos Windows 1000 registraram `UnityPlayer.dll`, exceções `0xc0000005` e `0xc000041d`, após os testes. **Marcador interno positivo não equivale a E2E aprovado.** O executor foi ampliado para registrar também o código de saída em futuras execuções; os JSON desta captura anterior à alteração já registram FAIL.
+
+Não houve detecção de rosto, pose ou mãos nesta rodada. Não aprovar mão no rosto/cabeça, oração, todos os dedos ou piscadas humanas a partir destes resultados. A tentativa adicional com o projeto mínimo existente foi inconclusiva: seu build Vulkan não inicializou e não continha shaders D3D11; foi encerrado por timeout. Isso não estabelece a causa do crash do Avatar nesta rodada.
+
+### Pacote e limites
+
+O assembly corrigido foi atualizado em `publish/Windows/AvatarStudio_Data/Managed/WebcamAvatar.dll`, idêntico ao export de teste `publish/WindowsE2E`. SHA-256: `CFC19CECD0FB1AC578E0CBAD1434A1E8062748FC96FC4C82B8452D1C2625C285`. Os módulos Python locais também foram sincronizados. O processo anteriormente aberto continua com o código carregado em memória: use **Sair** na bandeja e abra novamente para carregar as correções.
+
+Avaturn foi validado com T1 de rosto estático. MetaHuman foi validado somente com fixture MakeHuman para o caminho de importação, sem personagem MetaHuman real. Corporativo 2 pago continua indisponível. Não foram aprovados serviços autenticados de agenda/agentes do ChatTrade, monitoramento remoto do admin, reconhecimento humano de voz/gestos, privacidade em reunião real ou todos os controles da bandeja.
+
+Resumo estruturado: `Validation/windows-full-e2e/summary.json`. Evidências visuais: `Validation/windows-full-e2e/laboratory.png`, `Validation/corporate-virtual-output.png`, `Validation/cartoon-virtual-output.png` e `publish/Validation/corporate-390.png`.

@@ -26,6 +26,7 @@ namespace WebcamAvatar
         public int port = 5059;
         public bool NativeSpeaking;
         public SpeechLipSync Speech;
+        public bool IsSpeaking => NativeSpeaking || (Speech != null && Speech.Playing);
         public bool AgentMode;
         public void ApplyAgentFrame(TrackingFrame value){if(!AgentMode)return;frame=value;FrameSequence++;received=Time.unscaledTime;}
         public float smoothing = 12;
@@ -97,7 +98,7 @@ namespace WebcamAvatar
         void Start()
         {
             // Keep synthetic smoke packets isolated from an open user session.
-            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")>=0)port=15059;
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")>=0 || Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-live-e2e")>=0)port=15059;
             try { socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, port)); socket.Client.Blocking = false; }
             catch (Exception e) { error = e.Message; }
             if (humanoid != null && humanoid.isHuman) CacheRig();
@@ -190,9 +191,8 @@ namespace WebcamAvatar
             bool live=Time.unscaledTime-received<.6f;
             expressions.Clear();
             if(live && frame.face && frame.shapes!=null) foreach(var s in frame.shapes) expressions[s.name]=Mathf.Clamp01(s.value);
-            if(AgentMode&&Speech!=null){
-                // Silence is genuinely closed. A speaking flag must never invent mouth motion.
-                NativeSpeaking=Speech.Playing;
+            if(AgentMode&&Speech!=null&&Speech.Playing){
+                // Audio owns the mouth only while playing; keep commanded expressions and idle yawns.
                 expressions["jawOpen"]=Speech.Jaw;expressions["mouthFunnel"]=Speech.Round;
             }else if(NativeSpeaking&&Speech==null)expressions["jawOpen"] = .15f+.35f*Mathf.Abs(Mathf.Sin(Time.unscaledTime*12));
             var points=live && frame.pose && frame.points.Length==33 ? frame.points : null;

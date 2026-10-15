@@ -36,9 +36,24 @@ o resultado exige código de saída zero e marcador de aprovação, sem asserts
 falhos. Logs e `results.json` ficam em uma pasta datada dentro de `Validation`.
 O script não comprova renderização gráfica, hardware real ou integrações externas.
 
+Para verificações adicionais, use `-Cases @('face-only','partner-only')` no
+PowerShell. Laboratório, SALSA, personalização e interface completa exigem
+`-Graphical`, por exemplo `-Cases @('lab-only','lipsync-only','full-studio')
+-Graphical -SpeechFile 'D:\caminho\fala-publica.wav'`. `full-studio` inclui
+roupas, logo, fundo, materiais, expressões e layouts. O WAV deve ser PCM16.
+`-Executable` permite testar outra distribuição completa; mantenha sua pasta
+`Tracker` com o ambiente Python e modelos ao lado do executável.
+
 Teste com hardware: `Tracker/.venv/Scripts/python.exe Tools/e2e_corporate_camera.py`.
-Requer webcam física no índice 0 e OBS Virtual Camera no índice 1. Abre a webcam
+Requer webcam física no índice 0 e OBS Virtual Camera. Instale as dependências
+do executor com `Tracker/.venv/Scripts/python.exe -m pip install -r Tools/requirements-e2e-windows.txt`. Abre a webcam
 por 30 segundos, verifica o receptor DirectShow e inclui troca para tela limpa
 com prévia animada. Salva somente a imagem renderizada do avatar, nunca uma
 imagem da webcam real. O microfone da reunião continua sendo selecionado no
 Teams/Meet/Zoom.
+
+O teste de câmera aceita `--executable CAMINHO` e `--virtual-device INDICE`.
+Sem esses argumentos, usa o pacote `publish/Windows/AvatarStudio.exe` e o
+dispositivo OBS identificado pelo nome no DirectShow. Recusa salvar imagens de
+um receptor físico selecionado por engano. A execução instrumentada isola a porta de rastreamento
+e não restaura automaticamente o modo Agente salvo. Ela não valida a bandeja.
