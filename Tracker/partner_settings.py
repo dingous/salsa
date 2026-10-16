@@ -11,10 +11,20 @@ def load():
  with urllib.request.urlopen(request,timeout=10) as response:data=json.loads(response.read(128000))
  if not isinstance(data,dict):raise ValueError('Configuração administrativa inválida.')
  result=dict(DEFAULTS,**data)
+ result['_authenticated']=True
  if not result['enabled']:raise RuntimeError('Parceiro Dingous desabilitado pelo administrador.')
  if result['backend'] not in ('ollama','chattrade'):raise ValueError('Motor inválido.')
  if not isinstance(result['model'],str) or 'cloud' in result['model'].lower() or '://' in result['model']:raise ValueError('Modelo remoto bloqueado.')
  os.environ['DINGOUS_AI_MODEL']=result['model']
+ if result.get('launcher',{}).get('enabled') and not result.get('sharedEnvironmentProtection',True):
+  app=config.get('applicationKey','')
+  if re.fullmatch('[a-z0-9][a-z0-9-]{0,119}',app):
+   request=urllib.request.Request(url+'/api/dingous-partner/launcher-context?app='+urllib.parse.quote(app),headers={'Authorization':'Bearer '+token})
+   try:
+    with urllib.request.urlopen(request,timeout=10) as response:context=json.loads(response.read(2048))
+    result['_launcherAuthorized']=context.get('authorized') is True and context.get('applicationKey')==app
+    result['_launcherApplication']=app
+   except (OSError,ValueError):result['_launcherAuthorized']=False
  if result.get('agentKeys') and not result.get('sharedEnvironmentProtection',True):
   request=urllib.request.Request(url+'/api/dingous-partner/agents',headers={'Authorization':'Bearer '+token})
   with urllib.request.urlopen(request,timeout=10) as response:result['agents']=json.loads(response.read(256000))

@@ -19,7 +19,7 @@ namespace WebcamAvatar
         public float EffectiveEyeSize => eyeSize * (IsRealistic ? .78f : 1f);
         public bool glasses;
         public bool beard;
-        public int environment;
+        public int environment = 1; // Studio is the default for all avatar models.
         public float faceWidth = 1, eyeSpacing = 1, noseSize = 1, mouthWidth = 1, jawWidth = 1;
         public float cheekVolume = 1, lipFullness = 1, eyeSize = 1, hairVolume = 1;
         public string source = "manual";

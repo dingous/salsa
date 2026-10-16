@@ -2,14 +2,30 @@
 import json,os,urllib.request,urllib.parse
 from pathlib import Path
 CONFIG=Path(os.getenv('LOCALAPPDATA',str(Path.home()))) / 'Dingous' / 'chat-trade.json'
+
+def connection_config():
+ if not CONFIG.exists():raise RuntimeError('ChatTrade não conectado: configure empresa e aplicativo localmente.')
+ config=json.loads(CONFIG.read_text(encoding='utf-8'))
+ if os.getenv('DINGOUS_ENVIRONMENT'):
+  from chat_trade_environment import endpoints
+  config['url']=endpoints()[0]
+  # A conversation ID must never cross the development/production boundary.
+  if config.get('sessionEnvironment')!=os.getenv('DINGOUS_ENVIRONMENT'):config.pop('conversationId',None)
+  config['sessionEnvironment']=os.getenv('DINGOUS_ENVIRONMENT')
+ return config
 def settings():
  if not CONFIG.exists():raise RuntimeError('ChatTrade não conectado: configure URL, empresa e autenticação localmente.')
- config=json.loads(CONFIG.read_text(encoding='utf-8'));url=config.get('url','').rstrip('/');parsed=urllib.parse.urlsplit(url)
+ config=connection_config();url=config.get('url','').rstrip('/');parsed=urllib.parse.urlsplit(url)
  if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username or parsed.password:raise ValueError('URL ChatTrade inválida.')
  if parsed.scheme=='http' and parsed.hostname not in ('127.0.0.1','localhost','::1'):raise ValueError('Use HTTPS fora do computador local.')
  if config.get('localAiVerified') is not True:raise RuntimeError('Confirme o provedor local da empresa antes de usar agentes: localAiVerified deve ser true. Não habilitamos APIs pagas automaticamente.')
  company=config.get('companyId');token=os.getenv('DINGOUS_CHATTRADE_TOKEN')
- if not isinstance(company,int) or company<=0 or not token:raise RuntimeError('Empresa/token ChatTrade ausentes. Use DINGOUS_CHATTRADE_TOKEN na sessão local, nunca no repositório.')
+ if not token:
+  from chat_trade_credentials import load
+  token=load()
+ if not isinstance(company,int) or company<=0:raise RuntimeError('Empresa ChatTrade ausente ou inválida na configuração local.')
+ if not token:raise RuntimeError('URL e empresa configuradas. Falta autenticar o Avatar na API ChatTrade; a sessão do navegador não substitui essa credencial.')
+ if token.startswith('dav_local_') and parsed.hostname not in ('127.0.0.1','localhost','::1'):raise RuntimeError('A chave fixa local não pode ser enviada ao ambiente de produção. Entre no ChatTrade de produção.')
  return config,url,company,token
 def ask(question):
  config,url,company,token=settings();conversation=config.get('conversationId');body={'message':question,'companyId':company,'channel':'web'}

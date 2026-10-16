@@ -71,6 +71,13 @@ def preview(image,detections,mask):
     ok,jpeg=cv2.imencode('.jpg',copy,[cv2.IMWRITE_JPEG_QUALITY,55])
     return base64.b64encode(jpeg).decode() if ok and len(jpeg)<=130000 else None
 
+def connection_error_state(error):
+    import urllib.error
+    if isinstance(error,urllib.error.HTTPError):
+        if error.code==401:return 'auth_required'
+        if error.code==403:return 'access_denied'
+    return 'retrying'
+
 def run():
     from chat_trade_client import settings as connection
     config,url,company,token=connection();app=config.get('applicationKey','')
@@ -93,7 +100,11 @@ def run():
             data=jpeg.tobytes();self.send_response(200);self.send_header('Content-Type','image/jpeg');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
     server=ThreadingHTTPServer(('127.0.0.1',8768),Handler);server.daemon_threads=True;token_file.write_text(local_token,encoding='ascii');threading.Thread(target=server.serve_forever,daemon=True).start()
     def request(route,body=None):
+        # Reload a renewed login without retaining an expired bearer for the process lifetime.
+        latest,latest_url,latest_company,latest_token=connection()
+        if (latest_url,latest_company,latest.get('applicationKey',''))!=(url,company,app):raise RuntimeError('connection_scope_changed')
         req=urllib.request.Request(url+'/api/dingous-partner/eyes/'+app+'/'+route,data=json.dumps(body).encode() if body is not None else None,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+        req.add_header('Authorization','Bearer '+latest_token)
         with urllib.request.urlopen(req,timeout=8) as response:return json.loads(response.read(300000)) if response.status!=204 else None
     try:
         while True:
@@ -135,10 +146,18 @@ def run():
                     sequence+=1
                 except Exception:pass
                 # Do not print URLs, tokens, images or server response bodies.
-                print(json.dumps(dict(eyes='error',code=type(error).__name__)),flush=True);time.sleep(5)
+                if str(error)=='connection_scope_changed':raise
+                state=connection_error_state(error)
+                print(json.dumps(dict(eyes=state,code=type(error).__name__)),flush=True);time.sleep(5)
     finally:
         if capture is not None:capture.release()
         server.shutdown();server.server_close();token_file.unlink(missing_ok=True)
 
 if __name__=='__main__':
-    argparse.ArgumentParser(description=__doc__).parse_args();run()
+    argparse.ArgumentParser(description=__doc__).parse_args()
+    while True:
+        try:run()
+        except (RuntimeError,ValueError,OSError) as error:
+            # Startup has no camera until the authenticated configuration is valid.
+            print(json.dumps(dict(eyes='unconfigured',code=type(error).__name__)),flush=True)
+            time.sleep(10)

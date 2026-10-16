@@ -2,7 +2,20 @@ import io,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 import dingous_partner as partner
+import partner_settings
 class PartnerTests(unittest.TestCase):
+ def setUp(self):
+  policy=patch('dingous_partner.load_settings',return_value=dict(partner_settings.DEFAULTS))
+  policy.start();self.addCleanup(policy.stop)
+ def test_face_enrollment_and_door_commands_never_invent_success(self):
+  for question in ('Cadastre meu rosto','Registre esta face','Abra o portão'):
+   with patch('dingous_partner.load_settings',return_value=dict(partner.load_settings(),backend='ollama')),patch('dingous_partner.urllib.request.urlopen') as llm:
+    result=partner.answer(question)
+    self.assertEqual(result['model'],'access-capability-guard')
+    self.assertFalse(result['actionExecuted']);self.assertFalse(result['identityVerified']);llm.assert_not_called()
+ def test_local_calendar_query_does_not_invent_appointments(self):
+  with patch('dingous_partner.load_settings',return_value=dict(partner.load_settings(),backend='ollama')),patch('dingous_partner.urllib.request.urlopen') as llm:
+   self.assertEqual(partner.answer('Veja minha agenda')['model'],'capability-guard');llm.assert_not_called()
  def test_local_model_cannot_confirm_a_reminder_without_tools(self):
   with patch('dingous_partner.load_settings',return_value=dict(partner.load_settings(),backend='ollama')),patch('dingous_partner.urllib.request.urlopen') as llm:
    result=partner.answer('Me lembre de revisar o documento às 18h')

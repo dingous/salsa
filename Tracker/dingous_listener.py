@@ -1,5 +1,6 @@
 """Opt-in microphone loop: offline Portuguese ASR, wake name and local speech."""
-import argparse,json,queue,time,re,unicodedata,subprocess,socket
+import argparse,json,queue,time,re,unicodedata,subprocess,socket,os
+from collections import deque
 from pathlib import Path
 import numpy as np
 from dingous_partner import answer,ROOT
@@ -61,9 +62,12 @@ def listen():
    greeting_stamp.write_text(day,encoding='utf-8')
  except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
  last_briefing=None;next_policy=0
- start=time.monotonic();activeUntil=0;blocks=[];silence=0;speech=False;wasActive=False;voice_gate=VoiceActivityGate();commands=CommandDeduplicator()
+ start=time.monotonic();activeUntil=0;blocks=[];silence=0;speech=False;wasActive=False;voice_gate=VoiceActivityGate();commands=CommandDeduplicator();preroll=deque(maxlen=3)
  with sd.InputStream(device=capture['device'],samplerate=16000,blocksize=1600,dtype='float32',channels=capture['channels'],callback=callback) as stream:
-  device_name=sd.query_devices(stream.device,'input')['name']
+  actual_device=sd.query_devices(stream.device,'input')
+  device_name=actual_device['name']+' / '+sd.query_hostapis(actual_device['hostapi'])['name']+' / canal '+str(capture['channel']+1)
+  try:Path(__file__).with_name('microphone-runtime.json').write_text(json.dumps(dict(pid=os.getpid(),startedAt=time.time(),device=stream.device,channels=capture['channels'],channel=capture['channel'],name=device_name)),encoding='utf-8')
+  except OSError:pass
   print('LISTEN|Microfone aberto: '+device_name+'. Diga Dingous e sua pergunta.',flush=True)
   last_signal=time.monotonic();no_signal_warned=False
   while not args.seconds or time.monotonic()-start<args.seconds:
@@ -100,8 +104,8 @@ def listen():
     print('VOICE_ERROR|Microfone sem sinal: '+device_name+'. Confira o mute físico, a tecla de microfone e a entrada selecionada no Windows.',flush=True)
     no_signal_warned=True
    loud=voice_gate.active(audio)
-   if not speech and loud:speech=True;wasActive=time.monotonic()<activeUntil
-   if not speech:continue
+   if not speech and loud:speech=True;wasActive=time.monotonic()<activeUntil;blocks.extend(preroll);preroll.clear()
+   if not speech:preroll.append(audio);continue
    blocks.append(audio);silence=0 if loud else silence+1
    if silence<9 and len(blocks)<120:continue
    sample=np.concatenate(blocks);blocks=[];silence=0;speech=False
@@ -128,6 +132,7 @@ def listen():
    except Exception as error:print('VOICE_ERROR|'+str(error),flush=True)
    finally:
     time.sleep(.6) # Let the speaker/room tail decay before reopening capture.
+    preroll.clear()
     while not packets.empty():packets.get_nowait()
     stream.start();print('LISTEN|Microfone ativo: aguardando Dingous',flush=True)
 def main():

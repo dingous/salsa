@@ -35,6 +35,86 @@ namespace WebcamAvatar
             float start=Time.realtimeSinceStartup;
             while(ui.Vrm.Loading && Time.realtimeSinceStartup-start<45)yield return null;
             Check(ui.Vrm.Active,"MakeHuman default loaded by UniVRM");
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--session-ui")>=0){
+                float deadline=Time.realtimeSinceStartup+12;
+                var sessionField=typeof(StudioUI).GetField("sessionJob",BindingFlags.NonPublic|BindingFlags.Instance);
+                while(sessionField.GetValue(ui)!=null&&Time.realtimeSinceStartup<deadline)yield return null;
+                bool locked=(bool)typeof(StudioUI).GetField("sessionLocked",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
+                bool authenticated=(bool)typeof(StudioUI).GetField("sessionAuthenticated",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(ui);
+                Check(locked||authenticated,"Startup requires API authentication or remains on login");
+                Check(authenticated||!ui.AgentMode,"Personal mode stays disabled until authentication succeeds");
+                if(Array.IndexOf(Environment.GetCommandLineArgs(),"--session-authenticated")>=0)
+                    Check(authenticated&&!locked,"Saved session is validated by the real API and unlocks the Windows UI");
+                yield return new WaitForEndOfFrame();
+                var screenshot=new Texture2D(Screen.width,Screen.height,TextureFormat.RGB24,false);
+                screenshot.ReadPixels(new Rect(0,0,Screen.width,Screen.height),0,0);screenshot.Apply();
+                File.WriteAllBytes(Path.GetFullPath("Validation/avatar-login.png"),screenshot.EncodeToPNG());Destroy(screenshot);
+                yield return new WaitForSecondsRealtime(.5f);
+                Debug.Log("CORPORATE_SESSION_UI_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--agent-idle-only")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    var motion=ui.GetComponent<AgentMotion>();motion.IdleEnabled=false;ui.avatar.freeze=true;
+                    Call(ui,"ShowPartner");
+                    Check(motion.IdleEnabled&&!ui.avatar.freeze&&ui.tracking.AgentMode,"Entering Agent restores idle and unfreezes avatar "+mode);
+                    yield return new WaitForSecondsRealtime(3.3f);
+                    typeof(AgentMotion).GetField("nextBlink",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(motion,Time.unscaledTime);
+                    typeof(AgentMotion).GetField("nextYawn",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(motion,Time.unscaledTime);
+                    float until=Time.unscaledTime+2.7f,idleBlinkPeak=0,idleJawPeak=0;
+                    while(Time.unscaledTime<until){idleBlinkPeak=Mathf.Max(idleBlinkPeak,ui.tracking.GetExpression("eyeBlinkLeft"));idleJawPeak=Mathf.Max(idleJawPeak,ui.tracking.GetExpression("jawOpen"));yield return null;}
+                    Check(idleBlinkPeak>.3f&&idleJawPeak>.3f&&ui.tracking.PoseDetected,"Idle supplies blinking yawning and relaxed pose "+mode);
+                    motion.IdleEnabled=false;Call(ui,"ShowPartner");
+                    Check(motion.IdleEnabled,"Reopening Agent restores idle "+mode);
+                    Call(ui,"SelectRunMode",false);
+                }
+                Debug.Log("CORPORATE_AGENT_IDLE_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--webcam-transition")>=0){
+                foreach(int mode in new[]{0,1}){
+                    Call(ui,"SelectAvatarMode",mode);while(ui.Vrm.Loading)yield return null;
+                    Call(ui,"ShowPartner");Check(ui.tracking.AgentMode,"Agent enabled before webcam transition "+mode);
+                    Call(ui,"SelectRunMode",false);
+                    var field=typeof(StudioUI).GetField("trackerJob",BindingFlags.NonPublic|BindingFlags.Instance);
+                    var job=field.GetValue(ui);
+                    Check(job!=null&&!ui.tracking.AgentMode,"Webcam selection automatically starts tracking "+mode);
+                    int sequence=ui.tracking.FrameSequence;
+                    float deadline=Time.realtimeSinceStartup+45;
+                    while(ui.tracking.FrameSequence<sequence+5&&Time.realtimeSinceStartup<deadline)yield return null;
+                    Check(ui.tracking.FrameSequence>=sequence+5&&ui.tracking.Connected,"Physical webcam packets reach avatar after transition "+mode);
+                    Call(ui,"SelectRunMode",false);
+                    Check(ReferenceEquals(job,field.GetValue(ui)),"Selecting Webcam twice keeps capture running "+mode);
+                    Call(ui,"ShowPartner");Check(field.GetValue(ui)==null&&ui.tracking.AgentMode,"Returning to Agent releases webcam tracker "+mode);
+                    Call(ui,"SetTrackingPreview",false);
+                    Call(ui,"SetTrackingPreview",true);
+                    Check(field.GetValue(ui)!=null&&!ui.tracking.AgentMode,"Enabling webcam preview starts stopped capture "+mode);
+                    sequence=ui.tracking.FrameSequence;deadline=Time.realtimeSinceStartup+45;
+                    while(ui.tracking.FrameSequence<sequence+5&&Time.realtimeSinceStartup<deadline)yield return null;
+                    Check(ui.tracking.FrameSequence>=sequence+5,"Preview capture delivers real camera frames "+mode);
+                    Call(ui,"ShowPartner");
+                }
+                Debug.Log("CORPORATE_WEBCAM_TRANSITION_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
+            if(Array.IndexOf(Environment.GetCommandLineArgs(),"--hairline-only")>=0){
+                yield return ui.LoadVrmRoutine(VrmAvatarController.DefaultPath);
+                ui.avatar.Profile.hairStyle=0;ui.avatar.Profile.style=1;ui.Vrm.ApplyAppearance();
+                Call(ui,"ShowPage",1);Call(ui,"FrameVrm",false);
+                ui.avatarCamera.orthographicSize=.23f;
+                var portraitPosition=ui.avatarCamera.transform.position;portraitPosition.y+=.18f;ui.avatarCamera.transform.position=portraitPosition;
+                string directory=Path.GetFullPath("Validation/hairline");Directory.CreateDirectory(directory);
+                foreach(var mesh in ui.Vrm.Instance.GetComponentsInChildren<SkinnedMeshRenderer>())
+                    if(mesh.name.ToLowerInvariant().Contains("short02"))foreach(var material in mesh.materials){material.shader=Shader.Find("Standard");material.DisableKeyword("_ALPHATEST_ON");}
+                yield return ui.CaptureInterface(Path.Combine(directory,"before.png"));
+                ui.Vrm.ApplyAppearance();
+                yield return ui.CaptureInterface(Path.Combine(directory,"after.png"));
+                foreach(int style in new[]{0,1,2}){
+                    ui.avatar.Profile.hairStyle=style;ui.Vrm.ApplyAppearance();
+                    foreach(var mesh in ui.Vrm.Instance.GetComponentsInChildren<SkinnedMeshRenderer>())
+                        if(mesh.enabled&&(mesh.name.ToLowerInvariant().Contains("short02")||mesh.name.ToLowerInvariant().Contains("short04")||mesh.name.ToLowerInvariant().Contains("long01")))
+                            foreach(var material in mesh.sharedMaterials)Check(material.shader.name=="CorporateAvatar/AlphaCutout","Hair transparency survives appearance changes "+style);
+                }
+                Debug.Log("CORPORATE_HAIRLINE_RESULT="+(!failed));Application.Quit(failed?1:0);yield break;
+            }
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--metahuman-dna-only")>=0){
                 var arguments=Environment.GetCommandLineArgs();int dnaIndex=Array.IndexOf(arguments,"--dna-file");
                 Check(dnaIndex>=0&&dnaIndex+1<arguments.Length,"Official DNA path supplied");

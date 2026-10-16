@@ -50,7 +50,8 @@ namespace WebcamAvatar.Editor
             if(!found){int index=shaders.arraySize;shaders.InsertArrayElementAtIndex(index);shaders.GetArrayElementAtIndex(index).objectReferenceValue=toon;}
             graphics.ApplyModifiedPropertiesWithoutUndo();AssetDatabase.SaveAssets();
             Directory.CreateDirectory("Build");
-            var result=BuildPipeline.BuildPlayer(EditorBuildSettings.scenes,"Build/CorporateAvatarStudio.exe",BuildTarget.StandaloneWindows64,BuildOptions.None);
+            var development=Array.IndexOf(Environment.GetCommandLineArgs(),"--development-build")>=0;
+            var result=BuildPipeline.BuildPlayer(EditorBuildSettings.scenes,"Build/CorporateAvatarStudio.exe",BuildTarget.StandaloneWindows64,development?BuildOptions.Development:BuildOptions.None);
             if(result.summary.result!=UnityEditor.Build.Reporting.BuildResult.Succeeded)throw new Exception("Corporate build failed");
             Debug.Log("CORPORATE_BUILD_PASS");
         }

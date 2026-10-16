@@ -12,18 +12,18 @@ namespace WebcamAvatar.Editor
         {
             if(options.target==BuildTarget.StandaloneWindows64){
                 var output=Path.GetFullPath(options.locationPathName);
-                Build(output);
+                Build(output,(options.options & BuildOptions.Development)!=0);
                 if((options.options & BuildOptions.AutoRunPlayer)!=0)Run(output);
                 return;
             }
             BuildPlayerWindow.DefaultBuildMethods.BuildPlayer(options);
         }
-        public static void Build(string output)
+        public static void Build(string output,bool development=false)
         {
             var root=Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath,".."));
             var script=Path.Combine(root,"Tools","publish-windows.ps1");
             var process=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo{
-                FileName="powershell.exe",Arguments="-NoProfile -ExecutionPolicy Bypass -File \""+script+"\" -OutputPath \""+output+"\" -StopRunning",
+                FileName="powershell.exe",Arguments="-NoProfile -ExecutionPolicy Bypass -File \""+script+"\" -OutputPath \""+output+"\" -StopRunning"+(development?" -Development":""),
                 WorkingDirectory=root,UseShellExecute=false,CreateNoWindow=true,RedirectStandardError=true
             });
             string errors=process.StandardError.ReadToEnd();

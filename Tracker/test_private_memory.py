@@ -5,6 +5,9 @@ import dingous_partner as partner
 import partner_settings
 from private_memory import save,statement
 class PrivateMemoryTests(unittest.TestCase):
+ def setUp(self):
+  policy=patch('dingous_partner.load_settings',return_value=dict(partner_settings.DEFAULTS))
+  policy.start();self.addCleanup(policy.stop)
  def test_natural_fact_is_saved_without_model_or_echo(self):
   with tempfile.TemporaryDirectory() as folder,patch('dingous_partner.urllib.request.urlopen') as request:
    root=Path(folder);result=partner.answer('Tenho uma filha chamada Pessoa Ficticia',root)

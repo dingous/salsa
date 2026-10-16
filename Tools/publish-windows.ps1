@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$OutputPath, [switch]$SkipBuild, [switch]$SkipTracker, [switch]$StopRunning)
+param([string]$OutputPath, [switch]$SkipBuild, [switch]$SkipTracker, [switch]$StopRunning, [switch]$Development)
 $ErrorActionPreference='Stop'
 $avatarRoot=Split-Path $PSScriptRoot -Parent
 if(!$OutputPath){$OutputPath=Join-Path $avatarRoot 'publish/Windows/AvatarStudio.exe'}
@@ -14,7 +14,7 @@ foreach($avatarProcess in $avatarRunning){
     $avatarWait=Get-Process -Id $avatarProcess.ProcessId -ErrorAction SilentlyContinue
     if($avatarWait -and !$avatarWait.WaitForExit(5000)){throw 'O aplicativo ainda está encerrando. Tente exportar novamente.'}
 }
-if(!$SkipBuild){& (Join-Path $PSScriptRoot 'build-corporate.ps1')}
+if(!$SkipBuild){& (Join-Path $PSScriptRoot 'build-corporate.ps1') -Development:$Development}
 $avatarSource=Join-Path $avatarRoot 'CorporateUnity/Build'
 $avatarDestination=Split-Path $OutputPath -Parent
 $avatarName=[IO.Path]::GetFileNameWithoutExtension($OutputPath)

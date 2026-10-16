@@ -11,6 +11,7 @@ namespace WebcamAvatar
     {
         readonly Dictionary<Material,Texture> fabricTextures=new Dictionary<Material,Texture>();
         readonly Dictionary<Material,Shader> shaders=new Dictionary<Material,Shader>();
+        readonly Dictionary<Material,string[]> shaderKeywords=new Dictionary<Material,string[]>();
         SkinnedMeshRenderer[] meshes;
         Texture2D logo;string loadedLogo;Transform chest;
         public bool IsCorporateHuman {get;private set;}
@@ -18,10 +19,10 @@ namespace WebcamAvatar
         {
             meshes=model.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             var instance=model.GetComponent<Vrm10Instance>();chest=instance!=null?instance.Runtime.ControlRig.GetBoneTransform(HumanBodyBones.Neck):null;
-            shaders.Clear();fabricTextures.Clear();IsCorporateHuman=false;
+            shaders.Clear();shaderKeywords.Clear();fabricTextures.Clear();IsCorporateHuman=false;
             foreach(var mesh in meshes) {
                 if(mesh.sharedMesh.GetBlendShapeIndex("identity_faceWidth")>=0)IsCorporateHuman=true;
-                foreach(var material in mesh.materials)if(!shaders.ContainsKey(material)){shaders[material]=material.shader;fabricTextures[material]=material.HasProperty("_MainTex")?material.GetTexture("_MainTex"):null;}
+                foreach(var material in mesh.materials)if(!shaders.ContainsKey(material)){shaders[material]=material.shader;shaderKeywords[material]=material.shaderKeywords;fabricTextures[material]=material.HasProperty("_MainTex")?material.GetTexture("_MainTex"):null;}
             }
         }
         public void Apply(AvatarProfile profile)
@@ -48,6 +49,12 @@ namespace WebcamAvatar
                     if(!shaders.TryGetValue(material,out var original))continue;
                     // Preserve textures and alpha: switching only the shader retains their properties.
                     material.shader=profile.style==0?Shader.Find("CorporateAvatar/TexturedToon"):original;
+                    // Shader assignment resets local keywords. Restore the imported
+                    // alpha-test variant when returning to Standard (hair, brows,
+                    // lashes), otherwise transparent texels become opaque cards.
+                    if(profile.style!=0)material.shaderKeywords=shaderKeywords[material];
+                    if(profile.style!=0&&Array.IndexOf(shaderKeywords[material],"_ALPHATEST_ON")>=0)
+                        material.shader=Shader.Find("CorporateAvatar/AlphaCutout");
                     if(material.HasProperty("_MainTex")&&fabricTextures.TryGetValue(material,out var fabric))material.SetTexture("_MainTex",fabric);
                     if(name.Contains("male_casualsuit06")&&(profile.shirtPattern!=0||logo!=null)){
                         material.shader=Shader.Find("CorporateAvatar/ShirtPrint");

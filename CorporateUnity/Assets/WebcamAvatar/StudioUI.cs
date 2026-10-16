@@ -118,7 +118,7 @@ namespace WebcamAvatar
             font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             Directory.CreateDirectory(Path.Combine(Storage,"Avatars")); Directory.CreateDirectory(Path.Combine(Storage,"Drafts"));
             broadcaster=gameObject.AddComponent<VirtualCameraOutput>(); broadcaster.source=output;broadcaster.sourceCamera=avatarCamera;
-            office=avatarCamera.gameObject.AddComponent<CorporateOffice>();office.Show(true);
+            office=avatarCamera.gameObject.AddComponent<CorporateOffice>();office.Show(false);
             Vrm=gameObject.AddComponent<VrmAvatarController>();Vrm.settings=avatar;Vrm.tracking=tracking;
             MakeRoundedSprite(); Build(); RefreshLibrary();
             presence=gameObject.AddComponent<WindowsAgentPresence>();
@@ -128,7 +128,7 @@ namespace WebcamAvatar
             int savedIndex=Array.IndexOf(savedFolders,PlayerPrefs.GetString("LastAvatar",""));
             if(savedIndex>=0 && !string.IsNullOrEmpty(JsonUtility.FromJson<AvatarProfile>(File.ReadAllText(Path.Combine(savedFolders[savedIndex],"avatar.json"))).vrmSource))LoadSaved(savedIndex+1);
             else StartCoroutine(LoadVrmRoutine(VrmAvatarController.DefaultPath));
-            if(PlayerPrefs.GetInt("DingousAgentAvailable",0)==1 && Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0)StartCoroutine(ResumeAgentMode());
+            StartSessionGate();
         }
         IEnumerator ResumeAgentMode(){agentResumeQueued=true;yield return null;while(busy||Vrm.Loading)yield return null;agentResumeQueued=false;ShowPartner();}
         void MakeRoundedSprite()
@@ -287,18 +287,31 @@ namespace WebcamAvatar
             if(presentation)SetPresentation(false);
             partnerMode=false;tracking.AgentMode=false;tracking.ClearSource();SetVoiceListening(false);StopPartner();StopLaboratory();
             eyesJob?.Dispose();eyesJob=null;
-            if(androidRuntime!=null)androidRuntime.SetTracking(false);
             avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
-            ShowPage(2);RefreshRunMode();SetStatus("Modo Webcam. Inicie o rastreamento e ative a câmera virtual em Transmissão.");
+            ShowPage(2);RefreshRunMode();
+            // Selecting Webcam must resume capture, including after Agent released
+            // its perception camera. Never toggle an already running tracker off.
+            bool capture=Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0
+                ||Array.IndexOf(Environment.GetCommandLineArgs(),"--webcam-transition")>=0;
+            if(capture){
+                if(androidRuntime!=null){androidRuntime.SetTracking(true);SetButtonLabel(trackButton,"Parar rastreamento");}
+                else if(trackerJob==null)ToggleTracking();
+            }
+            else SetStatus("Modo Webcam. Inicie o rastreamento e ative a câmera virtual em Transmissão.");
         }
         void ShowPartner(){
+            if(!sessionAuthenticated&&Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){
+                if(presentation)SetPresentation(false);sessionLocked=true;canvas.enabled=false;sessionMessage="Entre no ChatTrade para acessar o Modo Agente.";return;
+            }
             if(busy){if(!agentResumeQueued)StartCoroutine(ResumeAgentMode());SetStatus("Preparando o modelo do Agente. Aguarde o carregamento do VRM…");return;}
             if(partnerMode && advancedPanel!=null && advancedPanel.name=="Parceiro Dingous"){
+                agentMotion.IdleEnabled=true;avatar.freeze=false;
                 if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0)SetPresentation(true);
                 return;
             }
             StopLaboratory();if(trackerJob!=null)ToggleTracking();tracking.ClearSource();partnerMode=true;
             tracking.AgentMode=true;avatar.previewAnimation=false;animationToggle.SetIsOnWithoutNotify(false);
+            agentMotion.IdleEnabled=true;avatar.freeze=false;
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){PlayerPrefs.SetInt("DingousAgentAvailable",1);PlayerPrefs.Save();}
             StopCamera();RefreshRunMode();
             if(Application.platform==RuntimePlatform.WindowsPlayer && eyesJob==null && Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){
@@ -321,6 +334,7 @@ namespace WebcamAvatar
             if(Array.IndexOf(Environment.GetCommandLineArgs(),"--corporate-smoke")<0){voiceToggle.SetIsOnWithoutNotify(true);SetVoiceListening(true);SetPresentation(true);}
         }
         void OnGUI(){
+            if(DrawSession())return;
             if(!AgentFullScreen)return;
             float scale=Mathf.Clamp(Screen.width/1100f,.8f,1.6f);
             GUI.matrix=Matrix4x4.Scale(new Vector3(scale,scale,1));
@@ -329,6 +343,7 @@ namespace WebcamAvatar
             GUI.BeginGroup(new Rect(left,top,width,height));
             if(ttsOpen){DrawTts(width,height);GUI.EndGroup();GUI.matrix=Matrix4x4.identity;return;}
             GUI.Box(new Rect(16,16,width-32,112),"DINGOUS · SEU AGENTE PESSOAL");
+            if(GUI.Button(new Rect(width-128,18,108,26),"Deslogar")){GUI.EndGroup();GUI.matrix=Matrix4x4.identity;LogoutSession();return;}
             GUI.Label(new Rect(32,46,width-64,32),(status!=null?status.text:"Diga Dingous e seu comando.")+(Application.platform==RuntimePlatform.WindowsPlayer?" · Olhos: "+eyesState:""));
             bool listening=androidRuntime!=null?androidRuntime.Listening:voiceListener!=null;
             float buttonWidth=(width-88)/3;
@@ -731,6 +746,7 @@ namespace WebcamAvatar
             if(framingPreview==value)return;
             framingPreview=value;
             if(trackerJob!=null){ToggleTracking();ToggleTracking();}
+            else if(value)SelectRunMode(false);
         }
 
         void ToggleTracking()
@@ -830,8 +846,9 @@ namespace WebcamAvatar
         }
         void Update()
         {
+            UpdateSession();if(sessionLocked)return;
             if(eyesJob!=null){
-                while(eyesJob.Output.TryDequeue(out string eyesLine)){try{var heartbeat=JsonUtility.FromJson<EyesHeartbeat>(eyesLine);eyesState=heartbeat.eyes=="running"?"câmera ativa":heartbeat.eyes=="disabled"?"desativado no admin":"sem conexão";}catch(ArgumentException){}}
+                while(eyesJob.Output.TryDequeue(out string eyesLine)){try{var heartbeat=JsonUtility.FromJson<EyesHeartbeat>(eyesLine);eyesState=heartbeat.eyes=="running"?"câmera ativa":heartbeat.eyes=="disabled"?"desativado no admin":heartbeat.eyes=="unconfigured"?"aguardando vínculo ChatTrade":heartbeat.eyes=="auth_required"?"sessão expirada; entre novamente":heartbeat.eyes=="access_denied"?"acesso negado pelo servidor (403)":heartbeat.eyes=="retrying"?"reconectando ao ChatTrade":"sem conexão";}catch(ArgumentException){}}
                 if(eyesJob.Finished){eyesState="desconectado";if(eyesJob.ExitCode!=0)SetStatus(eyesJob.FriendlyError("Configure Olhos do Avatar no admin e a conexão local ChatTrade."),true);eyesJob.Dispose();eyesJob=null;}
             }
             if(canvas==null)return;
@@ -882,6 +899,8 @@ namespace WebcamAvatar
         }
         void OnDestroy()
         {
+            sessionJob?.Dispose();
+            localAdminJob?.Dispose();
             eyesJob?.Dispose();
             ttsJob?.Dispose();
             generator?.Dispose();trackerJob?.Dispose();broadcaster?.Stop();cameraJob?.Dispose();

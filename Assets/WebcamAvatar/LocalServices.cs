@@ -37,6 +37,8 @@ namespace WebcamAvatar
                 StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8
             }};
             Process.StartInfo.EnvironmentVariables["PYTHONIOENCODING"]="utf-8";
+            Process.StartInfo.EnvironmentVariables["DINGOUS_ENVIRONMENT"]=
+                UnityEngine.Application.isEditor||UnityEngine.Debug.isDebugBuild?"development":"production";
             Process.OutputDataReceived+=(sender,e)=> {if(e.Data!=null) Output.Enqueue(e.Data);};
             Process.ErrorDataReceived+=(sender,e)=> {if(e.Data!=null) lock(errors) { if(errors.Length>24000) errors.Clear(); errors.AppendLine(e.Data); }};
             Process.Start(); Process.BeginOutputReadLine(); Process.BeginErrorReadLine();

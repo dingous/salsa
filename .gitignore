@@ -9,6 +9,8 @@
 /Tracker/.venv/
 /Tracker/models/
 /Tracker/native/
+/Tracker/microphone-device.json
+/Tracker/microphone-runtime.json
 __pycache__/
 *.csproj
 *.sln

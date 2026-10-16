@@ -226,3 +226,167 @@ Teste físico com frase TTS fixa pelos alto-falantes: pico 0,24585, 119 blocos a
 A seleção anterior do canal 3 foi insuficiente: reconheceu a reprodução pelos alto-falantes, mas não a voz do usuário. Na comparação assistida sem playback, os canais 1 e 2 reconheceram fala e a palavra de ativação; o canal 3 não reconheceu fala. Perfil local corrigido para canal 1 (índice 0), API WDM-KS e ganho limitado de até 16x antes do Whisper/VAD. Pacotes locais atualizados. Isso substitui a recomendação anterior de canal 3.
 
 Confirmação final com o mesmo adaptador do aplicativo: pico 0,02875; 14 blocos acima do limiar; fala transcrita, mas palavra de ativação NÃO reconhecida. Resultado integral REPROVADO. Não certificar resposta do agente nem conexão ChatTrade a partir deste teste. A checagem de duplicidade no executor é uma regressão sobre o texto reconhecido, não uma certificação de eco físico. Evidências locais: Validation/microphone-assisted-channels.json e Validation/microphone-channel1-final.json. Áudio e transcrições não foram persistidos.
+
+## E2E autônomo Windows — agenda, voz e visão (15/10/2026)
+
+Executor reproduzível: `Tracker/.venv/Scripts/python.exe Tools/e2e-agent-autonomous.py`. Gera quatro frases TTS fixas com Microsoft Daniel, usa Whisper small local e o roteamento real do aplicativo. As quatro frases reconheceram a ativação e chegaram aos bloqueios corretos para capacidades não implementadas. Não simula acusticamente distância, ruído ou microfone físico.
+
+Passaram: quatro fluxos de áudio/ASR, regressão de comandos duplicados, contrato HTTP isolado de consulta/criação/consulta de agenda com recusa de credencial inválida e detecção MediaPipe de um rosto sintético/nenhum rosto. O servidor HTTP da agenda é somente fixture local; nenhum evento Google ou dado de produção foi criado. O rosto de teste foi gerado por IA e não foi matriculado em cadastro de identidade.
+
+WindowsE2E aprovou isolamento da animação do Agente nos modelos Cartoon/Corporativo, resposta do rig a comandos, idle e retorno ao modo Webcam (saída 0). Suíte Python: 119 testes aprovados. Corrigidos os guardas para consulta de agenda local e para cadastro facial/abertura de acesso: não podem inventar sucesso.
+
+**E2E integral REPROVADO:** falta vínculo autenticado do Avatar com ChatTrade; integração real Google Agenda não validada; cadastro/reconhecimento de identidade facial e controlador de porta não implementados. Um detector de rosto/pessoa não substitui identificação, consentimento, autorização ou prova de vida. Nenhuma porta foi acionada. A proteção de privacidade permanece ativa.
+
+Evidências locais: `Validation/agent-autonomous/report.json`, `run.log`, `unit-tests.log`, `windows-avatar-isolation.log` e `api-preflight.json`. O executor retorna código 1 enquanto houver esses bloqueios, mesmo com as simulações aprovadas. Cadastro facial positivo e operação real como porteiro não foram certificados.
+
+## Captura para voz baixa e coexistência (15/10/2026)
+
+Mantido Intel/WDM-KS, canal 1, calibrado com voz humana; filtro passa-altas de 80 Hz, normalização por energia de blocos com ganho máximo 16x e pré-captura de 300 ms para preservar o início da palavra de ativação. Processamento somente local; não muda volume, mute ou dispositivo padrão do Windows. Não há alegação de cancelamento de eco de reprodução de terceiros.
+
+Passaram: abertura simultânea de captura WASAPI explicitamente compartilhada e WDM-KS; reconhecimento de Dingous em frase TTS reduzida para 6% da amplitude com ruído senoidal de 50 Hz; preservação de silêncio, remoção de DC, limitação de nível e ausência de NaN/Inf. Suíte total: 122 testes aprovados. Isso não certifica alcance físico de 1/2/3 metros nem compatibilidade com todos os aplicativos ou modo exclusivo. Pacotes Python atualizados; requer reabrir a escuta para carregar os módulos.
+
+## E2E completo Windows solicitado — compromissos, música, áudio e webcam (15/10/2026)
+
+Resultado integral: **REPROVADO**, sem alegação de 100%. Relatório consolidado local: `Validation/agent-autonomous/full-windows-report.json`.
+
+- Cinco comandos sintetizados por TTS Windows passaram pelo Whisper e pelo roteamento real: consulta/criação de agenda, música, cadastro facial e abertura de acesso. Capacidades não implementadas foram bloqueadas corretamente.
+- Simulador HTTP isolado do contrato ChatTrade aprovou consulta/criação/consulta da agenda, persistência da conversa e recusa de credencial inválida. Fluxo de música aprovou política administrativa autenticada de teste, escopo, preferência por jazz e sugestão consistente no mesmo dia. Esses resultados não são Google Agenda ou agentes da empresa real.
+- Webcam física ACER HD User Facing abriu e entregou 45 quadros válidos a 640x480. Nenhuma imagem física foi salva. Não havia rosto/pose/mãos detectados no teste virtual; isso não certifica tracking humano nesta rodada autônoma.
+- Unity WindowsE2E aprovou paridade de rig Cartoon/Corporativo nos modos Webcam/Agente, saída 0. OBS/DirectShow aprovou transmissão dos dois modelos a 1280x720, aproximadamente 30 FPS. O movimento usado na transmissão era a prévia animada.
+- Teste acústico real pelos alto-falantes e microfone calibrado reconheceu fala, mas NÃO reconheceu a palavra de ativação em duas frases (compromissos e música). Ambos reprovados. Áudio injetado em arquivo aprovado não substitui esta reprovação física.
+- Suíte Python: 122 testes aprovados. Detecção MediaPipe de rosto sintético e imagem vazia aprovada; nenhuma identidade cadastrada.
+- API local respondeu 401 sem credencial; Admin local exige sua sessão. A sessão do navegador estava autenticada, porém o Avatar não tem arquivo de vínculo nem credencial. A busca autenticada de empresas não encontrou Dingous Avatar. Não alterei a empresa ativa nem criei permissões para contornar isso.
+
+Bloqueios: ativação acústica consistente e vínculo autenticado empresa/aplicativo/usuário com ChatTrade. Não foi certificado uso real de Google Agenda, nem acesso à agenda pessoal, nem execução do agente musical da empresa. Nenhum evento real, cadastro de pessoa ou abertura de porta foi executado.
+
+## Configuração real de empresa/aplicativo (15/10/2026)
+
+Criada pelo Admin autenticado a empresa privada Dingous Avatar, ID 48, e o aplicativo Dingous Avatar Pessoal, chave company-app-48-b1ba4cca44de418192c7681adb4b77da. O parceiro foi habilitado e a persistência conferida após recarregar; motor Ollama local, qwen3.5:4b instalado, privacidade mantida ativa. Corrigida validação MVC que exigia AgendaAccount e Nutrition.Preferences opcionais vazios. Admin recompilado sem erros e iniciado na porta 6300.
+
+Salvo o vínculo sem segredo em LOCALAPPDATA/Dingous/chat-trade.json, API http://127.0.0.1:5100. Essa criação substitui o bloqueio anterior de empresa inexistente; NÃO substitui autenticação. Nenhum token da API está disponível. Cliente agora aceita sessão existente protegida com DPAPI por usuário Windows, além da variável de sessão existente. O auxiliar Tools/configure-chattrade-session.py só salva após verificar empresa e obter validação HTTP da API; não cria token nem contorna login. Testes: 124 aprovados com configuração de teste isolada; autenticação real continua pendente. Captura da configuração: Validation/chattrade-avatar-settings.png.
+
+## 2026-10-15 — Recorte do cabelo / mancha na testa
+- Corrigido o recorte alpha dos materiais MakeHuman ao alternar shaders. Shader AlphaCutout em Resources mantém clip explícito no executável, sem depender da variante opcional do Standard.
+- Build Windows concluído; smoke --hairline-only passou (3 cabelos), com comparação visual antes/depois em Validation/hairline. A faixa opaca na testa desapareceu; sobrancelhas e cílios também respeitam transparência.
+- Esta verificação é de renderização Windows; não constitui E2E Android/web nem nova validação de movimentos.
+
+
+## 2026-10-15 — Autenticação do Avatar pelo admin
+- Implementado fluxo admin autenticado -> consentimento com antiforgery -> callback loopback de uso único -> validação na API -> DPAPI. Empresa e aplicativo são revalidados no servidor e no cliente; sessão de chat temporária, sem papel de admin.
+- Admin compilou com zero erros; Python passou py_compile. Não foi possível concluir a autenticação nem testar a API com a credencial: revisão automática bloqueou o comando de reinício do admin/início do pareamento. Admin local ficou parado após a compilação; usar Conectar Avatar ao ChatTrade.cmd para iniciar e autorizar pelo navegador.
+- Não declarar conexão autenticada até a validação real da API terminar.
+
+
+## 2026-10-15 — Retomada do rastreamento no Modo Webcam
+- SelectRunMode(false) agora inicia a captura automaticamente após encerrar a percepção do Agente. Selecionar Webcam novamente preserva o tracker existente. Android usa SetTracking(true), sem declaração de teste Android.
+- Build Windows passou. Smoke --webcam-transition passou em Cartoon e Corporativo: início automático, pelo menos 5 novos pacotes da webcam física, clique repetido sem desligar e retorno ao Agente liberando o tracker. Log: Validation/webcam-transition.log. Não valida precisão de gestos reais.
+- Pacote publish/Avatar Studio.exe atualizado.
+
+
+## 2026-10-15 — Tela inicial de login e Deslogar
+- Tela inicial Windows com Entrar com ChatTrade (autorização pelo admin no navegador) e opção Webcam sem acesso aos agentes. Reutiliza credencial DPAPI somente após validação na API; sem senha/token em PlayerPrefs.
+- Deslogar no canto superior direito remove credencial salva e conversationId, encerra escuta/percepção/rastreamento/saída virtual e retorna ao login. Perfil visual é preservado.
+- Build Windows passou; 3 testes Python de sessão passaram; smoke --session-ui passou para bloqueio inicial e ausência de escuta/percepção antes do login. Captura Validation/avatar-login.png.
+- O login completo pela API atualizada permanece não homologado: início da API/admin atualizados foi bloqueado pela revisão automática na etapa anterior. O processo antigo da API não aceita a nova chave local fixa. Não afirmar autenticação concluída.
+
+
+## 2026-10-15 — Ambientes e sugestões seguras de login
+- Login do admin com labels associados e autocomplete username/current-password para sugestões do gerenciador de senhas do navegador. Senhas não são armazenadas pelo Avatar.
+- LocalJob define DINGOUS_ENVIRONMENT a partir de Application.isEditor/Debug.isDebugBuild. Desenvolvimento: API 127.0.0.1:5100 e admin 127.0.0.1:6300; produção: HTTPS dingous.com.br. Sem fallback de produção para localhost. Build and Run do projeto raiz agora preserva a opção Development Build ao exportar o projeto corporativo.
+- Credencial DPAPI de produção separada; chave fixa local recusada antes de envio externo; conversationId descartado ao trocar de ambiente.
+- 131 testes Python passaram. Builds Windows Development e normal passaram, assim como smoke --session-ui em ambos. Capturas Validation/avatar-login-development.png e avatar-login-production.png. Admin com autofill compilou com zero erros em artifacts/avatar-local-admin-autofill.
+- Alterações do admin/autorização ainda não publicadas em dingous.com.br; login real completo e sugestões de credenciais salvas no navegador não foram homologados nesta etapa.
+
+
+## 2026-10-15 — Link local de pareamento indisponível
+- Confirmado: porta 6300 sem listener e callback 58756 encerrado. Link informado expirado, não reutilizável.
+- Launcher atualizado para artifacts/avatar-local-admin-autofill. Pareamento agora verifica disponibilidade do admin antes de abrir navegador, com instrução acionável; UI preserva erro específico.
+- Dois testes de falha do admin passaram e build Windows passou. Não houve inicialização automática do admin: esse comando foi rejeitado pela revisão automática anteriormente; usar o launcher manual para iniciar e gerar link novo.
+
+
+## 2026-10-15 — Correção do 404 de pareamento em produção
+- Publicado admin com AvatarConnectionController (consentimento autenticado, antiforgery, callback loopback, grant de chat por empresa/aplicativo) e API com contrato de settings/agentes presente no HEAD limpo 22271a8. Artefatos construídos em cópia isolada; alterações locais não relacionadas e appsettings não foram incluídos. Docker base preserva demais serviços.
+- ACR cq1f/cq1g concluídos. Digest ativo f4f3478935f6ef9077b320a36800b099f098ed02bdf1dfd8f4d46ecdab8611c6. Rollback preservado na tag avatar-auth-rollback-20261015. Houve aquecimento prolongado com 502/503 após reinícios; disponibilidade final confirmada.
+- Verificação HTTPS real: /admin/avatar/status 200 e protocol=1, /admin/login 200, / 200; /api/dingous-partner/settings 401 sem credencial. 135 testes Python e 15 testes de contratos de autorização passaram. A autenticação pessoal completa requer a conta real e não foi declarada concluída.
+- Cliente agora valida protocolo antes de abrir navegador, evitando link para servidor sem rota. Um link novo deve ser gerado no Avatar; os desafios antigos expiram.
+
+
+## 2026-10-15 — E2E de login localhost solicitado
+- Avatar Windows recompilado em Development, publicado em publish/Avatar Studio.exe e reaberto. Usa API 127.0.0.1:5100 e admin 127.0.0.1:6300.
+- API local real validada: /health 200; /api/dingous-partner/settings 401 sem credencial.
+- Admin local sem listener em 6300. Tentativa de iniciar por Start-Process foi rejeitada pela revisão automática (blocked by policy). Solicitado ao usuário executar Conectar Avatar ao ChatTrade.cmd; enquanto isso, não é possível concluir login/pareamento autenticado.
+- Smoke --session-ui agora suporta --session-authenticated para exigir validação real da credencial pela API e desbloqueio da interface; não foi declarado aprovado nesta etapa.
+
+
+## 2026-10-15 — Nova tentativa de iniciar admin localhost
+- Removidos do LoginController os caminhos de login administrativo automático em localhost e as credenciais embutidas usadas por eles. Login GET preserva sessão autenticada existente; login inválido não busca identidade de desenvolvimento.
+- Build artifacts/avatar-local-admin-secure concluído; 5 testes LocalAdminLogin.Smoke passaram. Launcher local passou a apontar para esse artefato.
+- Tentativa explícita de iniciar a versão corrigida em 127.0.0.1:6300 foi novamente rejeitada pela revisão automática (blocked by policy), sem motivo adicional. Não foi tentado outro mecanismo para contornar essa rejeição. Serviço continua desligado e E2E local autenticado não concluído. Nenhuma publicação em produção foi realizada nesta etapa.
+
+
+## 2026-10-15 — E2E real de login Windows executado
+- Executado CorporateAvatarStudio.exe --corporate-smoke --session-ui --session-authenticated; exit 1. Interface permaneceu no login; exigência de sessão validada pela API falhou (sem credencial aceita). Log Validation/local-login-e2e.log e captura Validation/avatar-login.png.
+- HTTP real: localhost:5100/health 200, settings 401 sem credencial, localhost:6300 sem serviço. Domínio público /admin/avatar/status e /admin/login 200. Nenhuma autenticação pessoal completa foi declarada.
+- Preflight real do pareamento local falhou antes de abrir navegador, com motivo específico; 4 testes de indisponibilidade/protocolo passaram. Mensagem do produto deixou de solicitar execução de CMD.
+- Não foi repetida a ação de inicialização rejeitada pela revisão automática.
+
+
+## 2026-10-15 — Login local pelo botão do Avatar
+- Entrar com ChatTrade em Development/Editor agora prepara o admin local após clique explícito da pessoa e abre o pareamento após protocol=1. Produção mantém o fluxo HTTPS existente. A abertura do aplicativo e as consultas de sessão não iniciam serviços locais.
+- Novo helper local_chattrade_admin.py reutiliza serviço disponível, valida fingerprint do artefato sem login automático, inicia somente em loopback, aguarda prontidão e mantém diagnóstico no AppData. Caminho do projeto configurado apenas no arquivo privado local.
+- 140 testes Python passaram (incluindo 5 testes do helper com Popen simulado); build Development e smoke real --session-ui passaram. Pacote Windows atualizado. O teste não acionou o botão que inicia o backend; não é um E2E de serviço autenticado.
+- A execução direta do backend pela ferramenta permanece rejeitada pela revisão automática. A inicialização real pelo clique da pessoa ainda precisa ser confirmada; não foi declarada executada ou homologada.
+
+
+
+## 2026-10-15 — Dingous Aplicativos
+
+Executor local adicionado ao modo Agente, com perfis JSON no admin /admin/dingous-parceiro (Launcher). Cada perfil contém name, applicationKey, executable e arguments (lista, sem shell ou interpolação de texto do usuário). Comando explícito: “Dingous, abra notas”. Parâmetros personalizados são definidos pelo administrador em cada perfil; comandos livres e scripts não são executados. Habilitar e salvar cadastra/vincula dingous-app-launcher na empresa. Endpoint launcher-context exige usuário, empresa, aplicativo habilitado, escopo app, agente ativo e política habilitada. Falha nessa autorização bloqueia o executor sem interromper os outros agentes. Proteção de ambiente compartilhado bloqueia abertura.
+
+Validação: 145 testes Python passaram, incluindo cinco do executor com fronteira de processo simulada. Builds Admin e API passaram (avisos preexistentes). Helpers copiados aos diretórios Tracker das exportações Windows existentes; não houve alteração C# ou necessidade de recompilar Unity neste passo. Não foi realizado lançamento real de aplicativo autenticado, salvamento no admin real nem publicação do servidor. Não é certificação E2E.
+
+
+## 2026-10-15 — diagnóstico do login local
+Admin 6300/status e API 5100/health responderam 200. A credencial legada local foi recusada com HTTP 401; a sessão do navegador havia expirado. Nenhuma permissão foi ampliada e nenhuma credencial foi fabricada. Mensagens do Avatar agora distinguem 401 (autenticar novamente), 403 (vínculos), indisponibilidade e política desabilitada. Quatro testes de sessão passaram; helper atualizado nas exportações Windows existentes. Login autenticado continua pendente de entrada pela conta no navegador.
+
+
+## 2026-10-15 — login local autenticado validado
+Login administrativo feito pelo formulário normal; empresa Dingous Avatar selecionada pela UI. Pareamento autorizado para o aplicativo pessoal existente. API aceitou a sessão e a credencial foi salva somente por DPAPI. avatar_session retornou AUTH_OK. E2E Windows real --session-ui --session-authenticated: exit 0, CORPORATE_SESSION_UI_RESULT=True; sessão salva validada pela API e tela desbloqueada. Evidência: Validation/authenticated-login-windows.log e Validation/avatar-connected-local.png. Aplicativo principal reaberto para carregar a sessão. Não foram alterados papéis ou ampliadas permissões.
+
+
+## 2026-10-15 — falha real de autorização dos Olhos
+Sessão real: GET settings 200, GET eyes/{app}/policy/{device} 403. Causa: AvatarEyesController exigia Admin/Root, enquanto pareamento entrega Customer com chat e app exatos. Correção no fonte permite somente policy/telemetry ao Customer autenticado com subject e ambos escopos, preservando Admin/Root e validação da empresa/aplicativo no serviço; não habilita administração ou leitura da prévia. Cinco casos de permissão passaram (Customer correto, aplicativo divergente, escopo ausente, Operator e Admin). API compilada isoladamente em Validation/eyes-api-build, com Program do HEAD para não ativar handler experimental de token local. Substituição/reinício da API foi rejeitada pela revisão automática: blocked by policy, sem justificativa adicional. Nenhuma alteração em execução foi aplicada pelo comando rejeitado. E2E Olhos real continua reprovado com 403; não declarar sistema 100%.
+
+
+## 2026-10-15 — mensagens de conexão corrigidas no Windows
+148 testes Python passaram; Unity Development build e exportação principal atualizados. Agenda agora distingue autenticação, modo local, conector ausente e privacidade; avisos de agenda não inicializam Ollama. Olhos distingue 401/auth_required de 403/access_denied, exibindo permissão recusada em vez de pedir novo login. Teste real local: agenda bloqueada pela política de ambiente compartilhado ativa; Olhos retornou access_denied duas vezes. Isso não comprova consulta de agenda nem funcionamento da câmera. Correção de permissão no servidor ainda não aplicada devido ao bloqueio automático já registrado. Aplicativo principal reaberto.
+
+
+## 2026-10-15 — repetição E2E login Windows
+Credencial anterior recusada; renovação concluída pelo consentimento normal na sessão administrativa existente. API real retornou AUTH_OK. CorporateAvatarStudio --session-ui --session-authenticated terminou exit 0 e CORPORATE_SESSION_UI_RESULT=True, comprovando leitura da sessão salva, validação na API e desbloqueio da interface. Evidências: Validation/login-e2e-latest.log e Validation/e2e-login-renewed.png. Aplicativo principal reaberto. Sessão temporária continua sujeita a expiração; não houve remoção da autenticação ou concessão de administrador ao Avatar. Olhos 403 permanece uma falha separada, sem aplicação da correção bloqueada do servidor.
+
+
+## 2026-10-15 — prévia webcam Windows
+Correção: habilitar Ver enquadramento da webcam inicia Modo Webcam quando o tracker está parado. Antes apenas mudava uma flag e não abria a prévia. Tracker real camera0 --frames8 com janela de prévia terminou exit0. Unity build Development passou. E2E --webcam-transition validou Cartoon e Corporativo: transição inicia captura, pacotes reais recebidos, selecionar Webcam duas vezes preserva tracker, retornar Agente libera captura e marcar prévia com tracker parado inicia captura e entrega frames reais. CORPORATE_WEBCAM_TRANSITION_RESULT=True, exit0. Exportação principal atualizada e reaberta. Evidência: Validation/webcam-preview-e2e.log. Teste não certifica qualidade dos gestos nem o módulo Olhos da API.
+
+
+## 2026-10-15 — restauração do idle no Modo Agente
+ShowPartner agora reativa AgentMotion.IdleEnabled e remove avatar.freeze tanto na entrada quanto ao reabrir painel já ativo. Corrige retorno após logout/laboratório manter animação de repouso desativada. Unity Development compilado e exportação principal atualizada/reaberta. E2E Windows --agent-idle-only terminou exit0, CORPORATE_AGENT_IDLE_RESULT=True, nos dois modelos: iniciou propositalmente idle desabilitado/avatar pausado, entrou no Agente e verificou retomada; frames de piscada, bocejo e pose relaxada; reentrada reativa idle. Temporizadores de piscada/bocejo foram antecipados no teste para validar sem espera aleatória; intervalos naturais de produção preservados. Evidência: Validation/agent-idle-e2e.log.
+
+
+## 2026-10-15 — CORS Windows/web e Android
+Preflight real OPTIONS da API5100 com Authorization/Content-Type: localhost:8765, 127.0.0.1:8765 e https://dingous.com.br retornaram204 com origem exata e credentials=true; https://untrusted.invalid retornou204 sem cabeçalho allow-origin, portanto bloqueado pelo navegador. Código CORS do ChatTrade atualizado para aceitar origem http(s)://10.0.2.2 somente em Development. Sete testes de origem passaram, incluindo rejeição de origem null, domínio externo e emulador em produção sem allowlist. Novo caso Android ainda não aplicado ao servidor devido ao bloqueio da atualização/reinício já registrado. Clientes Unity nativos não dependem de CORS; 401/403 exigem autenticação/escopo. Não houve E2E Android.
+
+
+## 2026-10-15 — comando abra o notepad
+Parser corrigido para artigos o/a e alias bloco de notas. Cinco testes do executor passaram, incluindo argv sem shell, escopo e recusa de acesso. Configuração real retornou launcher ausente, _launcherAuthorized false e sharedEnvironmentProtection true: abertura real não autorizada/não executada. Helpers atualizados nas exportações existentes. Não confundir parsing corrigido com integração administrativa ativada.
+
+## 2026-10-15 — validação acompanhada do agente Aplicativos
+
+- Admin real em http://localhost:6300/admin/agentes: Dingous Aplicativos continua inativo; vínculo desabilitado. Não foi alterado por fora do admin.
+- Correções no fonte do admin: ordem checkbox/hidden para Ativo e Padrão; enum como texto no JSON do editor; temperatura HTML interpretada com cultura invariável; ModelState inválido impede salvamento.
+- Compilação do admin e teste AgentForm.Smoke: sete casos de temperatura passaram.
+- AvatarEyes.Smoke --permissions: cinco casos de autorização por escopo passaram, sem banco/câmera.
+- Python: 148 testes passaram. Corrigida a dependência acidental dos testes de memória e parceiro nas configurações reais da sessão; política simulada isolada por teste.
+- E2E real interrompido antes da execução: servidor aberto ainda usa versão anterior. A atualização/reinicialização havia sido recusada com blocked by policy; nenhuma tentativa alternativa foi usada para contornar a recusa.
+- Não comprovado: ativação real, perfil Notepad salvo no admin, comando por microfone, abertura real do Notepad, autorização de Olhos no servidor atual.
